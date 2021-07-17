@@ -31,14 +31,15 @@
 		if(stat!=DEAD) //If not dead.
 			death(1) //Brains can die again. AND THEY SHOULD AHA HA HA HA HA HA
 		if(mind) //You aren't allowed to return to brains that don't exist
-			mind.current = null
+			mind.set_current(null)
 		ghostize() //Ghostize checks for key so nothing else is necessary.
 	container = null
+	QDEL_NULL(stored_dna)
 	return ..()
 
 
 /mob/living/brain/ex_act() //you cant blow up brainmobs because it makes transfer_to() freak out when borgs blow up.
-	return
+	return FALSE
 
 /mob/living/brain/blob_act(obj/structure/blob/B)
 	return

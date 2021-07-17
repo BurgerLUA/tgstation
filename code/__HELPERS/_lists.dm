@@ -9,7 +9,7 @@
  * Misc
  */
 
-#define LAZYINITLIST(L) if (!L) L = list()
+#define LAZYINITLIST(L) if (!L) { L = list(); }
 #define UNSETEMPTY(L) if (L && !length(L)) L = null
 ///Like LAZYCOPY - copies an input list if the list has entries, If it doesn't the assigned list is nulled
 #define LAZYLISTDUPLICATE(L) (L ? L.Copy() : null )
@@ -33,6 +33,12 @@
 #define LAZYCLEARLIST(L) if(L) L.Cut() // Consider LAZYNULL instead
 #define SANITIZE_LIST(L) ( islist(L) ? L : list() )
 #define reverseList(L) reverseRange(L.Copy())
+
+/// Performs an insertion on the given lazy list with the given key and value. If the value already exists, a new one will not be made.
+#define LAZYORASSOCLIST(lazy_list, key, value) \
+	LAZYINITLIST(lazy_list); \
+	LAZYINITLIST(lazy_list[key]); \
+	lazy_list[key] |= value;
 
 /// Passed into BINARY_INSERT to compare keys
 #define COMPARE_KEY __BIN_LIST[__BIN_MID]
@@ -120,45 +126,45 @@
 /proc/typecache_filter_list_reverse(list/atoms, list/typecache)
 	RETURN_TYPE(/list)
 	. = list()
-	for(var/thing in atoms)
-		var/atom/A = thing
-		if(!typecache[A.type])
-			. += A
+	for(var/atom/atom as anything in atoms)
+		if(!typecache[atom.type])
+			. += atom
 
 /proc/typecache_filter_multi_list_exclusion(list/atoms, list/typecache_include, list/typecache_exclude)
 	. = list()
-	for(var/thing in atoms)
-		var/atom/A = thing
-		if(typecache_include[A.type] && !typecache_exclude[A.type])
-			. += A
+	for(var/atom/atom as anything in atoms)
+		if(typecache_include[atom.type] && !typecache_exclude[atom.type])
+			. += atom
 
-//Like typesof() or subtypesof(), but returns a typecache instead of a list
+///Like typesof() or subtypesof(), but returns a typecache instead of a list
 /proc/typecacheof(path, ignore_root_path, only_root_path = FALSE)
 	if(ispath(path))
-		var/list/types = list()
+		var/list/types
+		var/list/output = list()
 		if(only_root_path)
-			types = list(path)
+			output[path] = TRUE
 		else
 			types = ignore_root_path ? subtypesof(path) : typesof(path)
-		var/list/L = list()
-		for(var/T in types)
-			L[T] = TRUE
-		return L
+			for(var/T in types)
+				output[T] = TRUE
+		return output
 	else if(islist(path))
 		var/list/pathlist = path
-		var/list/L = list()
+		var/list/output = list()
 		if(ignore_root_path)
-			for(var/P in pathlist)
-				for(var/T in subtypesof(P))
-					L[T] = TRUE
+			for(var/current_path in pathlist)
+				for(var/subtype in subtypesof(current_path))
+					output[subtype] = TRUE
+			return output
+
+		if(only_root_path)
+			for(var/current_path in pathlist)
+				output[current_path] = TRUE
 		else
-			for(var/P in pathlist)
-				if(only_root_path)
-					L[P] = TRUE
-				else
-					for(var/T in typesof(P))
-						L[T] = TRUE
-		return L
+			for(var/current_path in pathlist)
+				for(var/subpath in typesof(current_path))
+					output[subpath] = TRUE
+		return output
 
 //Removes any null entries from the list
 //Returns TRUE if the list had nulls, FALSE otherwise
@@ -565,3 +571,13 @@
 			return FALSE
 
 	return TRUE
+
+#define LAZY_LISTS_OR(left_list, right_list)\
+	( length(left_list)\
+		? length(right_list)\
+			? (left_list | right_list)\
+			: left_list.Copy()\
+		: length(right_list)\
+			? right_list.Copy()\
+			: null\
+	)
