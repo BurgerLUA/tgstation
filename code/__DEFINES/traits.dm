@@ -413,6 +413,8 @@ Remember to update _globalvars/traits.dm if you're adding/removing/renaming trai
  */
 #define TRAIT_AREA_SENSITIVE "area-sensitive"
 
+#define TRAIT_HEARING_SENSITIVE "hearing_sensitive"
+
 /// Climbable trait, given and taken by the climbable element when added or removed. Exists to be easily checked via HAS_TRAIT().
 #define TRAIT_CLIMBABLE "trait_climbable"
 
@@ -504,6 +506,9 @@ Remember to update _globalvars/traits.dm if you're adding/removing/renaming trai
 
 /// Trait applied when the MMI component is added to an [/obj/item/integrated_circuit]
 #define TRAIT_COMPONENT_MMI "component_mmi"
+
+/// If present on a [/mob/living/carbon], will make them appear to have a medium level disease on health HUDs.
+#define TRAIT_DISEASELIKE_SEVERITY_MEDIUM "diseaselike_severity_medium"
 
 //Medical Categories for quirks
 #define CAT_QUIRK_ALL 0
