@@ -33,7 +33,9 @@
 	///Prefix file to uise
 	var/prefix_file = "strings/names/american_prefix.txt"
 	///Base icon for the customer
-	var/base_icon = "amerifat"
+	var/base_icon = 'icons/mob/tourists.dmi'
+	///Base icon state for the customer
+	var/base_icon_state = "amerifat"
 	///Sound to use when this robot type speaks
 	var/speech_sound = 'sound/creatures/tourist/tourist_talk.ogg'
 
@@ -52,7 +54,7 @@
 /// You want to override this if you have dynamic orders, such as the moth tourists requesting the chef's clothes.
 /// If the list of orders are static, just modify orderable_objects.
 /datum/customer_data/proc/get_order(datum/venue/venue)
-	return pickweight(orderable_objects[venue.venue_type])
+	return pick_weight(orderable_objects[venue.venue_type])
 
 /datum/customer_data/proc/get_overlays(mob/living/simple_animal/robot_customer/customer)
 	return
@@ -84,6 +86,7 @@
 			/obj/item/food/pizza/pineapple = 1,
 			/obj/item/food/burger/baconburger = 10,
 			/obj/item/food/pancakes = 4,
+			/obj/item/food/eggsausage = 5,
 		),
 		VENUE_BAR = list(
 			/datum/reagent/consumable/ethanol/b52 = 6,
@@ -96,7 +99,7 @@
 
 /datum/customer_data/italian
 	prefix_file = "strings/names/italian_prefix.txt"
-	base_icon = "italian"
+	base_icon_state = "italian"
 	clothing_sets = list("italian_pison", "italian_godfather")
 
 	found_seat_lines = list("What a wonderful place to sit.", "I hope they serve it like-a my momma used to make it.")
@@ -139,7 +142,7 @@
 
 /datum/customer_data/french
 	prefix_file = "strings/names/french_prefix.txt"
-	base_icon = "french"
+	base_icon_state = "french"
 	clothing_sets = list("french_fit")
 	found_seat_lines = list("Hon hon hon", "It's not the Eiffel tower but it will do.", "Yuck, I guess this will make do.")
 	cant_find_seat_lines = list("Making someone like me stand? How dare you.", "What a filthy lobby!")
@@ -180,7 +183,7 @@
 
 /datum/customer_data/japanese
 	prefix_file = "strings/names/japanese_prefix.txt"
-	base_icon = "japanese"
+	base_icon_state = "japanese"
 	clothing_sets = list("japanese_animes")
 
 	found_seat_lines = list("Konnichiwa!", "Arigato gozaimasuuu~", "I hope there's some beef stroganoff...")
@@ -257,7 +260,7 @@
 
 /datum/customer_data/moth
 	prefix_file = "strings/names/moth_prefix.txt"
-	base_icon = "mothbot"
+	base_icon_state = "mothbot"
 	found_seat_lines = list("Give me your hat!", "Moth?", "Certainly an... interesting venue.")
 	cant_find_seat_lines = list("If I can't find a seat, I'm flappity flapping out of here quick!", "I'm trying to flutter here!")
 	leave_mad_lines = list("I'm telling all my moth friends to never come here!", "Zero star rating, even worse than that time I ate a mothball!","Closing down permanently would still be too good of a fate for this place.")
@@ -308,7 +311,7 @@
 		orderable[buffet.shoes] = 1
 
 	if (orderable.len)
-		var/datum/order = pickweight(orderable)
+		var/datum/order = pick_weight(orderable)
 		return order.type
 
 /datum/customer_data/moth/proc/get_wings(mob/living/simple_animal/robot_customer/customer)
@@ -350,7 +353,7 @@
 	return dynamic_order || ..()
 
 /datum/customer_data/mexican
-	base_icon = "mexican"
+	base_icon_state = "mexican"
 	prefix_file = "strings/names/mexican_prefix.txt"
 	speech_sound = 'sound/creatures/tourist/tourist_talk_mexican.ogg'
 	clothing_sets = list("mexican_poncho")
@@ -389,7 +392,7 @@
 	self_defense_line = "Time for you to find out what kind of robot I am, eh?"
 
 /datum/customer_data/british
-	base_icon = "british"
+	base_icon_state = "british"
 	prefix_file = "strings/names/british_prefix.txt"
 	speech_sound = 'sound/creatures/tourist/tourist_talk_british.ogg'
 
@@ -443,7 +446,7 @@
 
 ///MALFUNCTIONING - only shows up once per venue, very rare
 /datum/customer_data/malfunction
-	base_icon = "defect"
+	base_icon_state = "defect"
 	prefix_file = "strings/names/malf_prefix.txt"
 	speech_sound = 'sound/effects/clang.ogg'
 	clothing_sets = list("defect_wires", "defect_bad_takes")

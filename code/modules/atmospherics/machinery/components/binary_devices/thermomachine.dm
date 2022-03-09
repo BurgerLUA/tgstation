@@ -10,7 +10,7 @@
 
 	density = TRUE
 	max_integrity = 300
-	armor = list(MELEE = 0, BULLET = 0, LASER = 0, ENERGY = 100, BOMB = 0, BIO = 100, RAD = 100, FIRE = 80, ACID = 30)
+	armor = list(MELEE = 0, BULLET = 0, LASER = 0, ENERGY = 100, BOMB = 0, BIO = 100, FIRE = 80, ACID = 30)
 	layer = OBJ_LAYER
 	circuit = /obj/item/circuitboard/machine/thermomachine
 
@@ -44,18 +44,15 @@
 	///Efficiency minimum amount, min 0.25, max 1 (works best on higher laser tiers)
 	var/parts_efficiency = 1
 
-/obj/machinery/atmospherics/components/binary/thermomachine/Initialize()
+/obj/machinery/atmospherics/components/binary/thermomachine/Initialize(mapload)
 	. = ..()
 	RefreshParts()
 	update_appearance()
 
-/obj/machinery/atmospherics/components/binary/thermomachine/isConnectable()
+/obj/machinery/atmospherics/components/binary/thermomachine/is_connectable()
 	if(!anchored || panel_open)
 		return FALSE
 	. = ..()
-
-/obj/machinery/atmospherics/components/binary/thermomachine/getNodeConnects()
-	return list(dir, turn(dir, 180))
 
 /obj/machinery/atmospherics/components/binary/thermomachine/on_construction(obj_color, set_layer)
 	var/obj/item/circuitboard/machine/thermomachine/board = circuit
@@ -110,7 +107,7 @@
 		else
 			icon_state = "thermo_1"
 		return ..()
-	icon_state = "thermo_0"
+	icon_state = "thermo_base"
 	return ..()
 
 /obj/machinery/atmospherics/components/binary/thermomachine/update_overlays()
@@ -118,8 +115,8 @@
 	if(!initial(icon))
 		return
 	var/mutable_appearance/thermo_overlay = new(initial(icon))
-	. += getpipeimage(thermo_overlay, "pipe", dir, COLOR_LIME, piping_layer)
-	. += getpipeimage(thermo_overlay, "pipe", turn(dir, 180), COLOR_MOSTLY_PURE_RED, piping_layer)
+	. += get_pipe_image(thermo_overlay, "pipe", dir, COLOR_LIME, piping_layer)
+	. += get_pipe_image(thermo_overlay, "pipe", turn(dir, 180), COLOR_MOSTLY_PURE_RED, piping_layer)
 
 /obj/machinery/atmospherics/components/binary/thermomachine/examine(mob/user)
 	. = ..()
@@ -150,20 +147,19 @@
  * E is the efficiency variable. At E=1 and M=0 it works out to be ((C1*T1)+(C2*T2))/(C1+C2).
  */
 /obj/machinery/atmospherics/components/binary/thermomachine/process_atmos()
-	if(!is_operational || !on)  //if it has no power or its switched off, dont process atmos
-		on = FALSE
-		update_appearance()
+	if(!on)
 		return
 
 	var/turf/local_turf = get_turf(src)
-	if(!local_turf)
+
+	if(!is_operational || !local_turf)
 		on = FALSE
 		update_appearance()
 		return
 
 	// The gas we want to cool/heat
-	var/datum/gas_mixture/main_port = airs[1]
-	var/datum/gas_mixture/exchange_target = airs[2]
+	var/datum/gas_mixture/main_port = airs[2]
+	var/datum/gas_mixture/exchange_target = airs[1]
 
 	// The difference between target and what we need to heat/cool. Positive if heating, negative if cooling.
 	var/temperature_target_delta = target_temperature - main_port.temperature
@@ -199,7 +195,7 @@
 		if(use_enviroment_heat)
 			exchange_target = local_turf.return_air()
 		else
-			exchange_target = airs[2]
+			exchange_target = airs[1]
 
 		if(exchange_target.total_moles() < 5)
 			mole_eff_thermal_port = 0.1
@@ -228,7 +224,7 @@
 			efficiency *= clamp(log(1.55, exchange_target.total_moles()) * 0.15, 0.65, 1)
 
 		efficiency *= mole_efficiency
-		efficiency = max(efficiency, parts_efficiency) 
+		efficiency = max(efficiency, parts_efficiency)
 
 		if (exchange_target.temperature > THERMOMACHINE_SAFE_TEMPERATURE && safeties)
 			on = FALSE
@@ -261,33 +257,37 @@
 		power_usage = idle_power_usage
 
 	use_power(power_usage)
-	update_appearance()
 	update_parents()
 
-/obj/machinery/atmospherics/components/binary/thermomachine/attackby(obj/item/item, mob/user, params)
-	if(!on && item.tool_behaviour == TOOL_SCREWDRIVER)
-		if(!anchored)
-			to_chat(user, span_notice("Anchor [src] first!"))
-			return
-		if(default_deconstruction_screwdriver(user, "thermo-open", "thermo-0", item))
-			change_pipe_connection(panel_open)
-			return
-	if(default_change_direction_wrench(user, item))
-		return
-	if(default_deconstruction_crowbar(item))
-		return
+/obj/machinery/atmospherics/components/binary/thermomachine/screwdriver_act(mob/living/user, obj/item/tool)
+	if(on)
+		to_chat("You can't open [src] while it's on!")
+		return TOOL_ACT_TOOLTYPE_SUCCESS
+	if(!anchored)
+		to_chat(user, span_notice("Anchor [src] first!"))
+		return TOOL_ACT_TOOLTYPE_SUCCESS
+	if(default_deconstruction_screwdriver(user, "thermo-open", "thermo-0", tool))
+		change_pipe_connection(panel_open)
+		return TOOL_ACT_TOOLTYPE_SUCCESS
 
-	if(panel_open && item.tool_behaviour == TOOL_MULTITOOL)
-		piping_layer = (piping_layer >= PIPING_LAYER_MAX) ? PIPING_LAYER_MIN : (piping_layer + 1)
-		to_chat(user, span_notice("You change the circuitboard to layer [piping_layer]."))
-		update_appearance()
+/obj/machinery/atmospherics/components/binary/thermomachine/wrench_act(mob/living/user, obj/item/tool)
+	return default_change_direction_wrench(user, tool)
+
+/obj/machinery/atmospherics/components/binary/thermomachine/crowbar_act(mob/living/user, obj/item/tool)
+	return default_deconstruction_crowbar(tool)
+
+/obj/machinery/atmospherics/components/binary/thermomachine/multitool_act(mob/living/user, obj/item/multitool/multitool)
+	if(!panel_open)
 		return
-	return ..()
+	piping_layer = (piping_layer >= PIPING_LAYER_MAX) ? PIPING_LAYER_MIN : (piping_layer + 1)
+	to_chat(user, span_notice("You change the circuitboard to layer [piping_layer]."))
+	update_appearance()
+	return TOOL_ACT_TOOLTYPE_SUCCESS
 
 /obj/machinery/atmospherics/components/binary/thermomachine/default_change_direction_wrench(mob/user, obj/item/I)
 	if(!..())
 		return FALSE
-	SetInitDirections()
+	set_init_directions()
 	update_appearance()
 	return TRUE
 
@@ -300,15 +300,15 @@
 /obj/machinery/atmospherics/components/binary/thermomachine/proc/connect_pipes()
 	var/obj/machinery/atmospherics/node1 = nodes[1]
 	var/obj/machinery/atmospherics/node2 = nodes[2]
-	atmosinit()
+	atmos_init()
 	node1 = nodes[1]
 	if(node1)
-		node1.atmosinit()
-		node1.addMember(src)
+		node1.atmos_init()
+		node1.add_member(src)
 	node2 = nodes[2]
 	if(node2)
-		node2.atmosinit()
-		node2.addMember(src)
+		node2.atmos_init()
+		node2.add_member(src)
 	SSair.add_to_rebuild_queue(src)
 
 /obj/machinery/atmospherics/components/binary/thermomachine/proc/disconnect_pipes()
@@ -323,22 +323,25 @@
 			node2.disconnect(src)
 		nodes[2] = null
 	if(parents[1])
-		nullifyPipenet(parents[1])
+		nullify_pipenet(parents[1])
 	if(parents[2])
-		nullifyPipenet(parents[2])
+		nullify_pipenet(parents[2])
 
-/obj/machinery/atmospherics/components/binary/thermomachine/attackby_secondary(obj/item/item, mob/user, params)
-	. = ..()
-	if(panel_open && item.tool_behaviour == TOOL_WRENCH && !check_pipe_on_turf())
-		if(default_unfasten_wrench(user, item))
-			return SECONDARY_ATTACK_CONTINUE_CHAIN
-	if(panel_open && item.tool_behaviour == TOOL_MULTITOOL)
-		color_index = (color_index >= GLOB.pipe_paint_colors.len) ? (color_index = 1) : (color_index = 1 + color_index)
-		pipe_color = GLOB.pipe_paint_colors[GLOB.pipe_paint_colors[color_index]]
-		visible_message("<span class='notice'>You set [src] pipe color to [GLOB.pipe_color_name[pipe_color]].")
-		update_appearance()
-		return SECONDARY_ATTACK_CONTINUE_CHAIN
-	return SECONDARY_ATTACK_CONTINUE_CHAIN
+/obj/machinery/atmospherics/components/binary/thermomachine/wrench_act_secondary(mob/living/user, obj/item/tool)
+	if(!panel_open || check_pipe_on_turf())
+		return
+	if(default_unfasten_wrench(user, tool))
+		return TOOL_ACT_TOOLTYPE_SUCCESS
+	return
+
+/obj/machinery/atmospherics/components/binary/thermomachine/multitool_act_secondary(mob/living/user, obj/item/tool)
+	if(!panel_open)
+		return
+	color_index = (color_index >= GLOB.pipe_paint_colors.len) ? (color_index = 1) : (color_index = 1 + color_index)
+	pipe_color = GLOB.pipe_paint_colors[GLOB.pipe_paint_colors[color_index]]
+	visible_message("<span class='notice'>You set [src] pipe color to [GLOB.pipe_color_name[pipe_color]].")
+	update_appearance()
+	return TOOL_ACT_TOOLTYPE_SUCCESS
 
 /obj/machinery/atmospherics/components/binary/thermomachine/proc/check_pipe_on_turf()
 	for(var/obj/machinery/atmospherics/device in get_turf(src))
@@ -387,9 +390,9 @@
 		return TRUE
 
 /obj/machinery/atmospherics/components/binary/thermomachine/proc/explode()
-	explosion(loc, 0, 0, 3, 3, TRUE)
-	var/datum/gas_mixture/main_port = airs[1]
-	var/datum/gas_mixture/exchange_target = airs[2]
+	explosion(loc, 0, 0, 3, 3, TRUE, explosion_cause = src)
+	var/datum/gas_mixture/main_port = airs[2]
+	var/datum/gas_mixture/exchange_target = airs[1]
 	if(main_port)
 		loc.assume_air(main_port.remove_ratio(1))
 	if(exchange_target)
@@ -419,9 +422,9 @@
 	data["target"] = target_temperature
 	data["initial"] = initial(target_temperature)
 
-	var/datum/gas_mixture/air1 = airs[1]
-	data["temperature"] = air1.temperature
-	data["pressure"] = air1.return_pressure()
+	var/datum/gas_mixture/main_port = airs[2]
+	data["temperature"] = main_port.temperature
+	data["pressure"] = main_port.return_pressure()
 	data["efficiency"] = efficiency
 
 	data["use_env_heat"] = use_enviroment_heat
@@ -489,7 +492,7 @@
 	on = TRUE
 	icon_state = "thermo_base_1"
 
-/obj/machinery/atmospherics/components/binary/thermomachine/freezer/on/Initialize()
+/obj/machinery/atmospherics/components/binary/thermomachine/freezer/on/Initialize(mapload)
 	. = ..()
 	if(target_temperature == initial(target_temperature))
 		target_temperature = min_temperature
@@ -500,7 +503,7 @@
 	greyscale_colors = COLOR_CYAN
 	cooling = TRUE
 
-/obj/machinery/atmospherics/components/binary/thermomachine/freezer/on/coldroom/Initialize()
+/obj/machinery/atmospherics/components/binary/thermomachine/freezer/on/coldroom/Initialize(mapload)
 	. = ..()
 	target_temperature = COLD_ROOM_TEMP
 

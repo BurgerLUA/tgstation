@@ -10,11 +10,43 @@
 	righthand_file = 'icons/mob/inhands/equipment/tools_righthand.dmi'
 	w_class = WEIGHT_CLASS_TINY
 	slot_flags = ITEM_SLOT_BELT
-	custom_materials = list(/datum/material/iron=30, /datum/material/glass=20)
+	custom_materials = list(/datum/material/iron = 30, /datum/material/glass = 20)
+
+/obj/item/plant_analyzer/Initialize(mapload)
+	. = ..()
+	register_item_context()
 
 /obj/item/plant_analyzer/examine()
 	. = ..()
 	. += span_notice("Left click a plant to scan its growth stats, and right click to scan its chemical reagent stats.")
+
+/obj/item/plant_analyzer/add_item_context(
+	obj/item/source,
+	list/context,
+	atom/target,
+)
+
+	if(isliving(target))
+		// It's a health analyzer, but for podpeople.
+		var/mob/living/living_target = target
+		if(!(living_target.mob_biotypes & MOB_PLANT))
+			return NONE
+
+		context[SCREENTIP_CONTEXT_LMB] = "Scan health"
+		context[SCREENTIP_CONTEXT_RMB] = "Scan chemicals"
+		return CONTEXTUAL_SCREENTIP_SET
+
+	if(isitem(target))
+		// Easier to handle this here, as grown items are split across two type-paths
+		var/obj/item/item_target = target
+		if(!item_target.get_plant_seed())
+			return NONE
+
+		context[SCREENTIP_CONTEXT_LMB] = "Scan plant stats"
+		context[SCREENTIP_CONTEXT_RMB] = "Scan plant chemicals"
+		return CONTEXTUAL_SCREENTIP_SET
+
+	return NONE
 
 /// When we attack something, first - try to scan something we hit with left click. Left-clicking uses scans for stats
 /obj/item/plant_analyzer/pre_attack(atom/target, mob/living/user)
@@ -312,7 +344,7 @@
 	text += "Maximum reagent capacity: [scanned_plant.reagents.maximum_volume]\n"
 	var/chem_cap = 0
 	for(var/_reagent in scanned_plant.reagents.reagent_list)
-		var/datum/reagent/reagent  = _reagent
+		var/datum/reagent/reagent = _reagent
 		var/amount = reagent.volume
 		chem_cap += reagent.volume
 		reagents_text += "\n- [reagent.name]: [amount]"
@@ -417,7 +449,7 @@
 	flags_1 = NONE
 	resistance_flags = FLAMMABLE
 
-/obj/item/cultivator/rake/Initialize()
+/obj/item/cultivator/rake/Initialize(mapload)
 	. = ..()
 	var/static/list/loc_connections = list(
 		COMSIG_ATOM_ENTERED = .proc/on_entered,
@@ -457,7 +489,7 @@
 	hitsound = 'sound/weapons/bladeslice.ogg'
 	sharpness = SHARP_EDGED
 
-/obj/item/hatchet/Initialize()
+/obj/item/hatchet/Initialize(mapload)
 	. = ..()
 	AddComponent(/datum/component/butchering, 70, 100)
 
@@ -491,7 +523,7 @@
 	hitsound = 'sound/weapons/bladeslice.ogg'
 	var/swiping = FALSE
 
-/obj/item/scythe/Initialize()
+/obj/item/scythe/Initialize(mapload)
 	. = ..()
 	AddComponent(/datum/component/butchering, 90, 105)
 
@@ -553,12 +585,10 @@
 	throwforce = 8
 	w_class = WEIGHT_CLASS_SMALL
 	slot_flags = ITEM_SLOT_BELT
-	material_flags = MATERIAL_NO_EFFECTS
 	custom_materials = list(/datum/material/iron=4000, /datum/material/uranium=1500, /datum/material/gold=500)
 	attack_verb_continuous = list("slashes", "slices", "cuts")
 	attack_verb_simple = list("slash", "slice", "cut")
 	hitsound = 'sound/weapons/bladeslice.ogg'
-
 
 // *************************************
 // Nutrient defines for hydroponics
@@ -571,7 +601,7 @@
 	amount_per_transfer_from_this = 10
 	possible_transfer_amounts = list(1,2,5,10,15,25,50)
 
-/obj/item/reagent_containers/glass/bottle/nutrient/Initialize()
+/obj/item/reagent_containers/glass/bottle/nutrient/Initialize(mapload)
 	. = ..()
 	pixel_x = base_pixel_x + rand(-5, 5)
 	pixel_y = base_pixel_y + rand(-5, 5)
