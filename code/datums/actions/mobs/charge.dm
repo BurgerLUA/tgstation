@@ -21,24 +21,8 @@
 	/// List of charging mobs
 	var/list/charging = list()
 
-/datum/action/cooldown/mob_cooldown/charge/New(Target, delay, past, distance, speed, damage, destroy)
-	. = ..()
-	if(delay)
-		charge_delay = delay
-	if(past)
-		charge_past = past
-	if(distance)
-		charge_distance = distance
-	if(speed)
-		charge_speed = speed
-	if(damage)
-		charge_damage = damage
-	if(destroy)
-		destroy_objects = destroy
-
 /datum/action/cooldown/mob_cooldown/charge/Activate(atom/target_atom)
-	// start pre-cooldown so that the ability can't come up while the charge is happening
-	StartCooldown(10 SECONDS)
+	StartCooldown(360 SECONDS, 360 SECONDS)
 	charge_sequence(owner, target_atom, charge_delay, charge_past)
 	StartCooldown()
 
@@ -61,10 +45,11 @@
 		SSmove_manager.stop_looping(charger)
 
 	charging += charger
+	actively_moving = FALSE
 	SEND_SIGNAL(owner, COMSIG_STARTED_CHARGE)
-	RegisterSignal(charger, COMSIG_MOVABLE_BUMP, .proc/on_bump)
-	RegisterSignal(charger, COMSIG_MOVABLE_PRE_MOVE, .proc/on_move)
-	RegisterSignal(charger, COMSIG_MOVABLE_MOVED, .proc/on_moved)
+	RegisterSignal(charger, COMSIG_MOVABLE_BUMP, .proc/on_bump, TRUE)
+	RegisterSignal(charger, COMSIG_MOVABLE_PRE_MOVE, .proc/on_move, TRUE)
+	RegisterSignal(charger, COMSIG_MOVABLE_MOVED, .proc/on_moved, TRUE)
 	DestroySurroundings(charger)
 	charger.setDir(dir)
 	do_charge_indicator(charger, target)
@@ -84,6 +69,7 @@
 
 	// Yes this is disgusting. But we need to queue this stuff, and this code just isn't setup to support that right now. So gotta do it with sleeps
 	sleep(time_to_hit + charge_speed)
+	charger.setDir(dir)
 
 	return TRUE
 
@@ -101,6 +87,7 @@
 	var/atom/movable/charger = source.moving
 	UnregisterSignal(charger, list(COMSIG_MOVABLE_BUMP, COMSIG_MOVABLE_PRE_MOVE, COMSIG_MOVABLE_MOVED, COMSIG_MOB_STATCHANGE))
 	SEND_SIGNAL(owner, COMSIG_FINISHED_CHARGE)
+	actively_moving = FALSE
 	charging -= charger
 
 /datum/action/cooldown/mob_cooldown/charge/proc/stat_changed(mob/source, new_stat, old_stat)
@@ -240,7 +227,6 @@
 /datum/action/cooldown/mob_cooldown/charge/hallucination_charge/charge_sequence(atom/movable/charger, atom/target_atom, delay, past)
 	if(!enraged)
 		hallucination_charge(target_atom, 6, 8, 0, 6, TRUE)
-		StartCooldown(cooldown_time * 0.5)
 		return
 	for(var/i in 0 to 2)
 		hallucination_charge(target_atom, 4, 9 - 2 * i, 0, 4, TRUE)
@@ -273,7 +259,7 @@
 		our_clone.alpha = 127.5
 		our_clone.move_through_mob = owner
 		our_clone.spawn_blood = spawn_blood
-		do_charge(our_clone, target_atom, delay, past)
+		INVOKE_ASYNC(src, .proc/do_charge, our_clone, target_atom, delay, past)
 	if(use_self)
 		do_charge(owner, target_atom, delay, past)
 

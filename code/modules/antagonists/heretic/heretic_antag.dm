@@ -29,7 +29,7 @@
 	var/ascended = FALSE
 	/// The path our heretic has chosen. Mostly used for flavor.
 	var/heretic_path = PATH_START
-	/// A list of how many knowledge points this heretic CURRENTLY has. Used to research.
+	/// A sum of how many knowledge points this heretic CURRENTLY has. Used to research.
 	var/knowledge_points = 1
 	/// The time between gaining influence passively. The heretic gain +1 knowledge points every this duration of time.
 	var/passive_gain_timer = 20 MINUTES
@@ -39,16 +39,20 @@
 	var/living_heart_organ_slot = ORGAN_SLOT_HEART
 	/// A list of TOTAL how many sacrifices completed. (Includes high value sacrifices)
 	var/total_sacrifices = 0
-	/// A list of TOTAL how many high value sacrifices completed.
+	/// A list of TOTAL how many high value sacrifices completed. (Heads of staff)
 	var/high_value_sacrifices = 0
-	/// Lazy assoc list of [weakrefs to humans] to [image previews of the human]. Humans that we have as sacrifice targets.
-	var/list/datum/weakref/sac_targets
+	/// Lazy assoc list of [refs to humans] to [image previews of the human]. Humans that we have as sacrifice targets.
+	var/list/mob/living/carbon/human/sac_targets
 	/// Whether we're drawing a rune or not
 	var/drawing_rune = FALSE
 	/// A static typecache of all tools we can scribe with.
 	var/static/list/scribing_tools = typecacheof(list(/obj/item/pen, /obj/item/toy/crayon))
 	/// A blacklist of turfs we cannot scribe on.
 	var/static/list/blacklisted_rune_turfs = typecacheof(list(/turf/open/space, /turf/open/openspace, /turf/open/lava, /turf/open/chasm))
+
+/datum/antagonist/heretic/Destroy()
+	LAZYNULL(sac_targets)
+	return ..()
 
 /datum/antagonist/heretic/ui_data(mob/user)
 	var/list/data = list()
@@ -60,6 +64,7 @@
 		PATH_FLESH = "red",
 		PATH_ASH = "white",
 		PATH_VOID = "blue",
+		PATH_BLADE = "label", // my favorite color is label
 	)
 
 	data["charges"] = knowledge_points
@@ -176,7 +181,6 @@
 	return ..()
 
 /datum/antagonist/heretic/on_removal()
-
 	for(var/knowledge_index in researched_knowledge)
 		var/datum/heretic_knowledge/knowledge = researched_knowledge[knowledge_index]
 		knowledge.on_lose(owner.current)
@@ -189,15 +193,24 @@
 	var/mob/living/our_mob = mob_override || owner.current
 	handle_clown_mutation(our_mob, "Ancient knowledge described to you has allowed you to overcome your clownish nature, allowing you to wield weapons without harming yourself.")
 	our_mob.faction |= FACTION_HERETIC
-	RegisterSignal(our_mob, COMSIG_MOB_PRE_CAST_SPELL, .proc/on_spell_cast)
+
+	RegisterSignal(our_mob, list(COMSIG_MOB_BEFORE_SPELL_CAST, COMSIG_MOB_SPELL_ACTIVATED), .proc/on_spell_cast)
 	RegisterSignal(our_mob, COMSIG_MOB_ITEM_AFTERATTACK, .proc/on_item_afterattack)
 	RegisterSignal(our_mob, COMSIG_MOB_LOGIN, .proc/fix_influence_network)
+	RegisterSignal(our_mob, COMSIG_LIVING_POST_FULLY_HEAL, .proc/after_fully_healed)
 
 /datum/antagonist/heretic/remove_innate_effects(mob/living/mob_override)
 	var/mob/living/our_mob = mob_override || owner.current
 	handle_clown_mutation(our_mob, removing = FALSE)
 	our_mob.faction -= FACTION_HERETIC
-	UnregisterSignal(our_mob, list(COMSIG_MOB_PRE_CAST_SPELL, COMSIG_MOB_ITEM_AFTERATTACK, COMSIG_MOB_LOGIN))
+
+	UnregisterSignal(our_mob, list(
+		COMSIG_MOB_BEFORE_SPELL_CAST,
+		COMSIG_MOB_SPELL_ACTIVATED,
+		COMSIG_MOB_ITEM_AFTERATTACK,
+		COMSIG_MOB_LOGIN,
+		COMSIG_LIVING_POST_FULLY_HEAL,
+	))
 
 /datum/antagonist/heretic/on_body_transfer(mob/living/old_body, mob/living/new_body)
 	. = ..()
@@ -207,13 +220,13 @@
 		knowledge.on_gain(new_body)
 
 /*
- * Signal proc for [COMSIG_MOB_PRE_CAST_SPELL].
+ * Signal proc for [COMSIG_MOB_BEFORE_SPELL_CAST] and [COMSIG_MOB_SPELL_ACTIVATED].
  *
- * Checks if our heretic has TRAIT_ALLOW_HERETIC_CASTING.
+ * Checks if our heretic has [TRAIT_ALLOW_HERETIC_CASTING] or is ascended.
  * If so, allow them to cast like normal.
- * If not, cancel the cast.
+ * If not, cancel the cast, and returns [SPELL_CANCEL_CAST].
  */
-/datum/antagonist/heretic/proc/on_spell_cast(mob/living/source, obj/effect/proc_holder/spell/spell)
+/datum/antagonist/heretic/proc/on_spell_cast(mob/living/source, datum/action/cooldown/spell/spell)
 	SIGNAL_HANDLER
 
 	// Heretic spells are of the forbidden school, otherwise we don't care
@@ -229,7 +242,7 @@
 
 	// We shouldn't be able to cast this! Cancel it.
 	source.balloon_alert(source, "you need a focus!")
-	return COMPONENT_CANCEL_SPELL
+	return SPELL_CANCEL_CAST
 
 /*
  * Signal proc for [COMSIG_MOB_ITEM_AFTERATTACK].
@@ -322,6 +335,17 @@
 
 	GLOB.reality_smash_track.rework_network()
 
+/// Signal proc for [COMSIG_LIVING_POST_FULLY_HEAL], when we get fullhealed / ahealed,
+/// all of our organs are "deleted" and regenerated (cause it's a full heal)
+/// which unfortunately means we lose our living heart.
+/// So, we'll give them some lee-way and give them back the living heart afterwards
+/// (Maybe put this behind only admin_revives only? Not sure.)
+/datum/antagonist/heretic/proc/after_fully_healed(mob/living/source, admin_revive)
+	SIGNAL_HANDLER
+
+	var/datum/heretic_knowledge/living_heart/heart_knowledge = get_knowledge(/datum/heretic_knowledge/living_heart)
+	heart_knowledge.on_research(source)
+
 /**
  * Create our objectives for our heretic.
  */
@@ -356,7 +380,29 @@
 	var/image/target_image = image(icon = target.icon, icon_state = target.icon_state)
 	target_image.overlays = target.overlays
 
-	LAZYSET(sac_targets, WEAKREF(target), target_image)
+	LAZYSET(sac_targets, target, target_image)
+	RegisterSignal(target, COMSIG_PARENT_QDELETING, .proc/on_target_deleted)
+
+/**
+ * Removes [target] from the heretic's sacrifice list.
+ * Returns FALSE if no one was removed, TRUE otherwise
+ */
+/datum/antagonist/heretic/proc/remove_sacrifice_target(mob/living/carbon/human/target)
+	if(!(target in sac_targets))
+		return FALSE
+
+	LAZYREMOVE(sac_targets, target)
+	UnregisterSignal(target, COMSIG_PARENT_QDELETING)
+	return TRUE
+
+/**
+ * Signal proc for [COMSIG_PARENT_QDELETING] registered on sac targets
+ * if sacrifice targets are deleted (gibbed, dusted, whatever), free their slot and reference
+ */
+/datum/antagonist/heretic/proc/on_target_deleted(mob/living/carbon/human/source)
+	SIGNAL_HANDLER
+
+	remove_sacrifice_target(source)
 
 /**
  * Increments knowledge by one.
@@ -462,10 +508,8 @@
 		return
 
 	var/list/removable = list()
-	for(var/datum/weakref/ref as anything in sac_targets)
-		var/mob/living/carbon/human/old_target = ref.resolve()
-		if(!QDELETED(old_target))
-			removable[old_target.name] = old_target
+	for(var/mob/living/carbon/human/old_target as anything in sac_targets)
+		removable[old_target.name] = old_target
 
 	var/name_of_removed = tgui_input_list(admin, "Choose a human to remove", "Who to Spare", removable)
 	if(QDELETED(src) || !admin.client?.holder || isnull(name_of_removed))
@@ -473,10 +517,10 @@
 	var/mob/living/carbon/human/chosen_target = removable[name_of_removed]
 	if(QDELETED(chosen_target) || !ishuman(chosen_target))
 		return
-	if(!(WEAKREF(chosen_target) in sac_targets))
-		return
 
-	LAZYREMOVE(sac_targets, WEAKREF(chosen_target))
+	if(!remove_sacrifice_target(chosen_target))
+		to_chat(admin, span_warning("Failed to remove [name_of_removed] from [owner]'s sacrifice list. Perhaps they're no longer in the list anyways."))
+		return
 
 	if(tgui_alert(admin, "Let them know their targets have been updated?", "Whispers of the Mansus", list("Yes", "No")) == "Yes")
 		to_chat(owner.current, span_danger("The Mansus has modified your targets."))
@@ -513,11 +557,9 @@
 	. += "<br>"
 	. += "<i><b>Current Targets:</b></i><br>"
 	if(LAZYLEN(sac_targets))
-		for(var/datum/weakref/ref as anything in sac_targets)
-			var/mob/living/carbon/human/actual_target = ref.resolve()
-			if(QDELETED(actual_target))
-				continue
-			. += " - <b>[actual_target.real_name]</b>, the [actual_target.mind?.assigned_role?.title || "human"].<br>"
+		for(var/mob/living/carbon/human/target as anything in sac_targets)
+			. += " - <b>[target.real_name]</b>, the [target.mind?.assigned_role?.title || "human"].<br>"
+
 	else
 		. += "<i>None!</i><br>"
 	. += "<br>"
@@ -679,21 +721,11 @@
 	name = "summon monsters"
 	target_amount = 2
 	explanation_text = "Summon 2 monsters from the Mansus into this realm."
+	/// The total number of summons the objective owner has done
+	var/num_summoned = 0
 
 /datum/objective/heretic_summon/check_completion()
-
-	var/num_we_have = 0
-	for(var/datum/antagonist/heretic_monster/monster in GLOB.antagonists)
-		if(!monster.master)
-			continue
-		if(ishuman(monster.owner.current))
-			continue
-		if(monster.master != owner)
-			continue
-
-		num_we_have++
-
-	return completed || (num_we_have >= target_amount)
+	return completed || (num_summoned >= target_amount)
 
 /datum/outfit/heretic
 	name = "Heretic (Preview only)"

@@ -6,7 +6,8 @@
 /obj/effect/anomaly
 	name = "anomaly"
 	desc = "A mysterious anomaly, seen commonly only in the region of space that the station orbits..."
-	icon_state = "bhole3"
+	icon = 'icons/effects/anomalies.dmi'
+	icon_state = "vortex"
 	density = FALSE
 	anchored = TRUE
 	light_range = 3
@@ -22,6 +23,10 @@
 
 	/// Do we drop a core when we're neutralized?
 	var/drops_core = TRUE
+	///Do we keep on living forever?
+	var/immortal = FALSE
+	///Do we stay in one place?
+	var/immobile = FALSE
 
 /obj/effect/anomaly/Initialize(mapload, new_lifespan, drops_core = TRUE)
 	. = ..()
@@ -51,11 +56,21 @@
 	countdown = new(src)
 	if(countdown_colour)
 		countdown.color = countdown_colour
+	if(immortal)
+		return
 	countdown.start()
+
+/obj/effect/anomaly/vv_edit_var(vname, vval)
+	. = ..()
+	if(vname == NAMEOF(src, immortal))
+		if(vval)
+			countdown.stop()
+		else
+			countdown.start()
 
 /obj/effect/anomaly/process(delta_time)
 	anomalyEffect(delta_time)
-	if(death_time < world.time)
+	if(death_time < world.time && !immortal)
 		if(loc)
 			detonate()
 		qdel(src)
@@ -68,7 +83,7 @@
 	return ..()
 
 /obj/effect/anomaly/proc/anomalyEffect(delta_time)
-	if(DT_PROB(ANOMALY_MOVECHANCE, delta_time))
+	if(!immobile && DT_PROB(ANOMALY_MOVECHANCE, delta_time))
 		step(src,pick(GLOB.alldirs))
 
 /obj/effect/anomaly/proc/detonate()
@@ -79,7 +94,7 @@
 		qdel(src)
 
 /obj/effect/anomaly/proc/anomalyNeutralize()
-	new /obj/effect/particle_effect/smoke/bad(loc)
+	new /obj/effect/particle_effect/fluid/smoke/bad(loc)
 
 	if(drops_core)
 		aSignal.forceMove(drop_location())
@@ -87,7 +102,6 @@
 	// else, anomaly core gets deleted by qdel(src).
 
 	qdel(src)
-
 
 /obj/effect/anomaly/attackby(obj/item/weapon, mob/user, params)
 	if(weapon.tool_behaviour == TOOL_ANALYZER)
@@ -100,7 +114,7 @@
 
 /atom/movable/warp_effect
 	plane = GRAVITY_PULSE_PLANE
-	appearance_flags = PIXEL_SCALE // no tile bound so you can see it around corners and so
+	appearance_flags = PIXEL_SCALE|LONG_GLIDE // no tile bound so you can see it around corners and so
 	icon = 'icons/effects/light_overlays/light_352.dmi'
 	icon_state = "light"
 	pixel_x = -176
@@ -108,6 +122,7 @@
 
 /obj/effect/anomaly/grav
 	name = "gravitational anomaly"
+	icon = 'icons/effects/effects.dmi'
 	icon_state = "shield2"
 	density = FALSE
 	aSignal = /obj/item/assembly/signaler/anomaly/grav
@@ -182,6 +197,11 @@
 /obj/effect/anomaly/grav/high/proc/setup_grav_field()
 	grav_field = new(src, 7, TRUE, rand(0, 3))
 
+/obj/effect/anomaly/grav/high/detonate()
+	for(var/obj/machinery/gravity_generator/main/the_generator in GLOB.machines)
+		if(is_station_level(the_generator.z))
+			the_generator.blackout()
+
 /obj/effect/anomaly/grav/high/Destroy()
 	QDEL_NULL(grav_field)
 	. = ..()
@@ -190,16 +210,16 @@
 
 /obj/effect/anomaly/flux
 	name = "flux wave anomaly"
-	icon_state = "electricity2"
+	icon_state = "flux"
 	density = TRUE
 	aSignal = /obj/item/assembly/signaler/anomaly/flux
 	var/canshock = FALSE
 	var/shockdamage = 20
-	var/explosive = TRUE
+	var/explosive = FLUX_EXPLOSIVE
 
-/obj/effect/anomaly/flux/Initialize(mapload, new_lifespan, drops_core = TRUE, _explosive = TRUE)
+/obj/effect/anomaly/flux/Initialize(mapload, new_lifespan, drops_core = TRUE, explosive = FLUX_EXPLOSIVE)
 	. = ..()
-	explosive = _explosive
+	src.explosive = explosive
 	var/static/list/loc_connections = list(
 		COMSIG_ATOM_ENTERED = .proc/on_entered,
 	)
@@ -231,17 +251,19 @@
 		M.electrocute_act(shockdamage, name, flags = SHOCK_NOGLOVES)
 
 /obj/effect/anomaly/flux/detonate()
-	if(explosive)
-		explosion(src, devastation_range = 1, heavy_impact_range = 4, light_impact_range = 16, flash_range = 18) //Low devastation, but hits a lot of stuff.
-	else
-		new /obj/effect/particle_effect/sparks(loc)
-
+	switch(explosive)
+		if(FLUX_EXPLOSIVE)
+			explosion(src, devastation_range = 1, heavy_impact_range = 4, light_impact_range = 16, flash_range = 18) //Low devastation, but hits a lot of stuff.
+		if(FLUX_LOW_EXPLOSIVE)
+			explosion(src, heavy_impact_range = 1, light_impact_range = 4, flash_range = 6)
+		if(FLUX_NO_EXPLOSION)
+			new /obj/effect/particle_effect/sparks(loc)
 
 /////////////////////
 
 /obj/effect/anomaly/bluespace
 	name = "bluespace anomaly"
-	icon = 'icons/obj/guns/projectiles.dmi'
+	icon = 'icons/obj/weapons/guns/projectiles.dmi'
 	icon_state = "bluespace"
 	density = TRUE
 	aSignal = /obj/item/assembly/signaler/anomaly/bluespace
@@ -311,7 +333,7 @@
 
 /obj/effect/anomaly/pyro
 	name = "pyroclastic anomaly"
-	icon_state = "mustard"
+	icon_state = "pyroclastic"
 	var/ticks = 0
 	/// How many seconds between each gas release
 	var/releasedelay = 10
@@ -351,13 +373,13 @@
 		var/policy = get_policy(ROLE_PYROCLASTIC_SLIME)
 		if (policy)
 			to_chat(S, policy)
-		log_game("[key_name(S.key)] was made into a slime by pyroclastic anomaly at [AREACOORD(T)].")
+		S.log_message("was made into a slime by pyroclastic anomaly", LOG_GAME)
 
 /////////////////////
 
 /obj/effect/anomaly/bhole
 	name = "vortex anomaly"
-	icon_state = "bhole3"
+	icon_state = "vortex"
 	desc = "That's a nice station you have there. It'd be a shame if something happened to it."
 	aSignal = /obj/item/assembly/signaler/anomaly/vortex
 
@@ -418,5 +440,206 @@
 				SSexplosions.medturf += T
 			if(EXPLODE_LIGHT)
 				SSexplosions.lowturf += T
+
+/obj/effect/anomaly/bioscrambler
+	name = "bioscrambler anomaly"
+	icon_state = "bioscrambler"
+	aSignal = /obj/item/assembly/signaler/anomaly/bioscrambler
+	immortal = TRUE
+	/// Cooldown for every anomaly pulse
+	COOLDOWN_DECLARE(pulse_cooldown)
+	/// How many seconds between each anomaly pulses
+	var/pulse_delay = 15 SECONDS
+	/// Range of the anomaly pulse
+	var/range = 5
+	///Lists for zones and bodyparts to swap and randomize
+	var/static/list/zones = list(BODY_ZONE_HEAD, BODY_ZONE_CHEST, BODY_ZONE_L_ARM, BODY_ZONE_R_ARM, BODY_ZONE_L_LEG, BODY_ZONE_R_LEG)
+	var/static/list/chests
+	var/static/list/heads
+	var/static/list/l_arms
+	var/static/list/r_arms
+	var/static/list/l_legs
+	var/static/list/r_legs
+
+/obj/effect/anomaly/bioscrambler/Initialize(mapload, new_lifespan, drops_core)
+	. = ..()
+	if(!chests)
+		chests = typesof(/obj/item/bodypart/chest)
+	if(!heads)
+		heads = typesof(/obj/item/bodypart/head)
+	if(!l_arms)
+		l_arms = typesof(/obj/item/bodypart/l_arm)
+	if(!r_arms)
+		r_arms = typesof(/obj/item/bodypart/r_arm)
+	if(!l_legs)
+		l_legs = typesof(/obj/item/bodypart/l_leg)
+	if(!r_legs)
+		r_legs = typesof(/obj/item/bodypart/r_leg)
+
+/obj/effect/anomaly/bioscrambler/anomalyEffect(delta_time)
+	. = ..()
+
+	if(!COOLDOWN_FINISHED(src, pulse_cooldown))
+		return
+
+	COOLDOWN_START(src, pulse_cooldown, pulse_delay)
+
+	swap_parts(range)
+
+/obj/effect/anomaly/bioscrambler/proc/swap_parts(swap_range)
+	for(var/mob/living/carbon/nearby in range(swap_range, src))
+		if(nearby.run_armor_check(attack_flag = BIO, absorb_text = "Your armor protects you from [src]!") >= 100)
+			continue //We are protected
+		var/picked_zone = pick(zones)
+		var/obj/item/bodypart/picked_user_part = nearby.get_bodypart(picked_zone)
+		var/obj/item/bodypart/picked_part
+		switch(picked_zone)
+			if(BODY_ZONE_HEAD)
+				picked_part = pick(heads)
+			if(BODY_ZONE_CHEST)
+				picked_part = pick(chests)
+			if(BODY_ZONE_L_ARM)
+				picked_part = pick(l_arms)
+			if(BODY_ZONE_R_ARM)
+				picked_part = pick(r_arms)
+			if(BODY_ZONE_L_LEG)
+				picked_part = pick(l_legs)
+			if(BODY_ZONE_R_LEG)
+				picked_part = pick(r_legs)
+		var/obj/item/bodypart/new_part = new picked_part()
+		new_part.replace_limb(nearby, TRUE)
+		if(picked_user_part)
+			qdel(picked_user_part)
+		nearby.update_body(TRUE)
+		balloon_alert(nearby, "something has changed about you")
+
+/obj/effect/anomaly/hallucination
+	name = "hallucination anomaly"
+	icon_state = "hallucination"
+	aSignal = /obj/item/assembly/signaler/anomaly/hallucination
+	/// Time passed since the last effect, increased by delta_time of the SSobj
+	var/ticks = 0
+	/// How many seconds between each small hallucination pulses
+	var/release_delay = 5
+
+/obj/effect/anomaly/hallucination/anomalyEffect(delta_time)
+	. = ..()
+	ticks += delta_time
+	if(ticks < release_delay)
+		return
+	ticks -= release_delay
+	var/turf/open/our_turf = get_turf(src)
+	if(istype(our_turf))
+		hallucination_pulse(our_turf, 5)
+
+/obj/effect/anomaly/hallucination/detonate()
+	var/turf/open/our_turf = get_turf(src)
+	if(istype(our_turf))
+		hallucination_pulse(our_turf, 10)
+
+/obj/effect/anomaly/hallucination/proc/hallucination_pulse(turf/open/location, range)
+	for(var/mob/living/carbon/human/near in view(location, range))
+		// If they are immune to hallucinations.
+		if (HAS_TRAIT(near, TRAIT_MADNESS_IMMUNE) || (near.mind && HAS_TRAIT(near.mind, TRAIT_MADNESS_IMMUNE)))
+			continue
+
+		// Blind people don't get hallucinations.
+		if (near.is_blind())
+			continue
+
+		// Everyone else gets hallucinations.
+		var/dist = sqrt(1 / max(1, get_dist(near, location)))
+		near.hallucination += 50 * dist
+		near.hallucination = clamp(near.hallucination, 0, 150)
+		var/list/messages = list(
+			"You feel your conscious mind fall apart!",
+			"Reality warps around you!",
+			"Something's wispering around you!",
+			"You are going insane!",
+		)
+		to_chat(near, span_warning(pick(messages)))
+
+/////////////////////
+
+/obj/effect/anomaly/dimensional
+	name = "dimensional anomaly"
+	icon_state = "dimensional"
+	aSignal = /obj/item/assembly/signaler/anomaly/dimensional
+	immortal = TRUE
+	immobile = TRUE
+	/// Range of effect, if left alone anomaly will convert a 2(range)+1 squared area.
+	var/range = 3
+	/// List of turfs this anomaly will try to transform before relocating
+	var/list/turf/target_turfs = new()
+	/// Current anomaly 'theme', dictates what tiles to create.
+	var/datum/dimension_theme/theme
+	/// Effect displaying on the anomaly to represent the theme.
+	var/mutable_appearance/theme_icon
+
+/obj/effect/anomaly/dimensional/Initialize(mapload, new_lifespan, drops_core)
+	. = ..()
+	overlays += mutable_appearance('icons/effects/effects.dmi', "dimensional_overlay")
+
+	animate(src, transform = matrix()*0.85, time = 3, loop = -1)
+	animate(transform = matrix(), time = 3, loop = -1)
+
+/obj/effect/anomaly/dimensional/anomalyEffect(delta_time)
+	. = ..()
+	transmute_area()
+
+/**
+ * Transforms a turf in our prepared area.
+ */
+/obj/effect/anomaly/dimensional/proc/transmute_area()
+	if (!theme)
+		prepare_area()
+	if (!target_turfs.len)
+		relocate()
+		return
+
+	var/turf/affected_turf = target_turfs[1]
+	new /obj/effect/temp_visual/transmute_tile_flash(affected_turf)
+	theme.apply_theme(affected_turf)
+	target_turfs.Remove(affected_turf)
+
+/**
+ * Prepare a new area for transformation into a new theme.
+ */
+/obj/effect/anomaly/dimensional/proc/prepare_area()
+	var/datum/dimension_theme/themes = new()
+	theme = themes.get_random_theme()
+	apply_theme_icon()
+
+	target_turfs = new()
+	var/list/turfs = spiral_range_turfs(range, src)
+	for (var/turf/turf in turfs)
+		if (theme.can_convert(turf))
+			target_turfs.Add(turf)
+
+/**
+ * Applies an overlay icon based on the current theme.
+ */
+/obj/effect/anomaly/dimensional/proc/apply_theme_icon()
+	overlays -= theme_icon
+	theme_icon = mutable_appearance(theme.icon, theme.icon_state, FLOAT_LAYER - 1, appearance_flags = appearance_flags | RESET_TRANSFORM)
+	theme_icon.blend_mode = BLEND_INSET_OVERLAY
+	overlays += theme_icon
+
+/**
+ * Moves the anomaly somewhere else and announces it.
+ */
+/obj/effect/anomaly/dimensional/proc/relocate()
+	var/datum/anomaly_placer/placer = new()
+	var/area/new_area = placer.findValidArea()
+	var/turf/new_turf = placer.findValidTurf(new_area)
+
+	priority_announce("Dimensional instability relocated. Expected location: [new_area.name].", "Anomaly Alert")
+	src.forceMove(new_turf)
+	prepare_area()
+
+/obj/effect/temp_visual/transmute_tile_flash
+	icon = 'icons/effects/effects.dmi'
+	icon_state = "shield-flash"
+	duration = 3
 
 #undef ANOMALY_MOVECHANCE

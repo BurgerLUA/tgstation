@@ -1,7 +1,7 @@
 /mob/living/simple_animal/bot/secbot/grievous //This bot is powerful. If you managed to get 4 eswords somehow, you deserve this horror. Emag him for best results.
 	name = "General Beepsky"
 	desc = "Is that a secbot with four eswords in its arms...?"
-	icon = 'icons/mob/aibots.dmi'
+	icon = 'icons/mob/silicon/aibots.dmi'
 	icon_state = "grievous"
 	health = 150
 	maxHealth = 150
@@ -130,8 +130,9 @@
 			continue
 
 /mob/living/simple_animal/bot/secbot/grievous/explode()
-	..()
 	var/atom/Tsec = drop_location()
 	//Parent is dropping the weapon, so let's drop 3 more to make up for it.
-	for(var/IS = 0 to 3)
+	for(var/dropped_weapons = 0 to 3)
 		drop_part(weapon, Tsec)
+
+	return ..()

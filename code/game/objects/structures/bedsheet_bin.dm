@@ -12,8 +12,8 @@ LINEN BINS
 	name = "bedsheet"
 	desc = "A surprisingly soft linen bedsheet."
 	icon = 'icons/obj/bedsheets.dmi'
-	lefthand_file = 'icons/mob/inhands/misc/bedsheet_lefthand.dmi'
-	righthand_file = 'icons/mob/inhands/misc/bedsheet_righthand.dmi'
+	lefthand_file = 'icons/mob/inhands/items/bedsheet_lefthand.dmi'
+	righthand_file = 'icons/mob/inhands/items/bedsheet_righthand.dmi'
 	icon_state = "sheetwhite"
 	inhand_icon_state = "sheetwhite"
 	slot_flags = ITEM_SLOT_NECK
@@ -38,7 +38,7 @@ LINEN BINS
 		stack_amount *= 2
 		dying_key = DYE_REGISTRY_DOUBLE_BEDSHEET
 
-/obj/item/bedsheet/attack_self(mob/user)
+/obj/item/bedsheet/attack_self(mob/living/user)
 	if(!user.CanReach(src)) //No telekenetic grabbing.
 		return
 	if(!user.dropItemToGround(src))
@@ -53,6 +53,13 @@ LINEN BINS
 		layer = initial(layer)
 		plane = initial(plane)
 		to_chat(user, span_notice("You smooth [src] out beneath you."))
+	if(user.body_position == LYING_DOWN)    //The player isn't laying down currently
+		dir = user.dir
+	else
+		if(user.dir & WEST)    //The player is rotated to the right, lay the sheet left!
+			dir = WEST
+		else    //The player is rotated to the left, lay the sheet right!
+			dir = EAST
 	add_fingerprint(user)
 	return
 
@@ -191,7 +198,7 @@ LINEN BINS
 	desc = "It is decorated with a crate emblem in silver lining.  It's rather tough, and just the thing to lie on after a hard day of pushing paper."
 	icon_state = "sheetqm"
 	inhand_icon_state = "sheetqm"
-	dream_messages = list("a grey ID", "a shuttle", "a crate", "a sloth", "the quartermaster")
+	dream_messages = list("authority", "a silvery ID", "a shuttle", "a crate", "a sloth", "the quartermaster")
 
 /obj/item/bedsheet/chaplain
 	name = "chaplain's blanket"
@@ -312,7 +319,8 @@ LINEN BINS
 				/obj/item/bedsheet/ian,
 				/obj/item/bedsheet/cosmos,
 				/obj/item/bedsheet/nanotrasen))
-	new type(loc)
+	var/obj/item/bedsheet = new type(loc)
+	bedsheet.dir = dir
 	return INITIALIZE_HINT_QDEL
 
 /obj/item/bedsheet/double
@@ -471,12 +479,13 @@ LINEN BINS
 	icon_state = "random_bedsheet"
 	bedsheet_type = BEDSHEET_ABSTRACT
 
-/obj/item/bedsheet/dorms_double/Initialize()
+/obj/item/bedsheet/dorms_double/Initialize(mapload)
 	..()
 	var/type = pick_weight(list("Colors" = 80, "Special" = 20))
 	switch(type)
 		if("Colors")
-			type = pick(list(/obj/item/bedsheet,
+			type = pick(list(
+				/obj/item/bedsheet/double,
 				/obj/item/bedsheet/blue/double,
 				/obj/item/bedsheet/green/double,
 				/obj/item/bedsheet/grey/double,
@@ -485,14 +494,18 @@ LINEN BINS
 				/obj/item/bedsheet/red/double,
 				/obj/item/bedsheet/yellow/double,
 				/obj/item/bedsheet/brown/double,
-				/obj/item/bedsheet/black/double))
+				/obj/item/bedsheet/black/double,
+				))
 		if("Special")
-			type = pick(list(/obj/item/bedsheet/patriot/double,
+			type = pick(list(
+				/obj/item/bedsheet/patriot/double,
 				/obj/item/bedsheet/rainbow/double,
 				/obj/item/bedsheet/ian/double,
 				/obj/item/bedsheet/cosmos/double,
-				/obj/item/bedsheet/nanotrasen/double))
-	new type(loc)
+				/obj/item/bedsheet/nanotrasen/double,
+				))
+	var/obj/item/bedsheet = new type(loc)
+	bedsheet.dir = dir
 	return INITIALIZE_HINT_QDEL
 
 /obj/structure/bedsheetbin
@@ -552,7 +565,9 @@ LINEN BINS
 		return TOOL_ACT_TOOLTYPE_SUCCESS
 
 /obj/structure/bedsheetbin/wrench_act(mob/living/user, obj/item/tool)
-	return default_unfasten_wrench(user, tool, 5)
+	. = ..()
+	default_unfasten_wrench(user, tool, time = 0.5 SECONDS)
+	return TOOL_ACT_TOOLTYPE_SUCCESS
 
 /obj/structure/bedsheetbin/attackby(obj/item/I, mob/user, params)
 	if(istype(I, /obj/item/bedsheet))

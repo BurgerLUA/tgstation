@@ -4,9 +4,6 @@
 	name = "exosuit fabricator"
 	desc = "Nothing is being built."
 	density = TRUE
-	use_power = IDLE_POWER_USE
-	idle_power_usage = 20
-	active_power_usage = 5000
 	req_access = list(ACCESS_ROBOTICS)
 	circuit = /obj/item/circuitboard/machine/mechfab
 	processing_flags = START_PROCESSING_MANUALLY
@@ -76,9 +73,22 @@
 	rmat = AddComponent(/datum/component/remote_materials, "mechfab", mapload && link_on_init, mat_container_flags=BREAKDOWN_FLAGS_LATHE)
 	RefreshParts() //Recalculating local material sizes if the fab isn't linked
 	update_menu_tech()
+	RegisterSignal(
+		stored_research,
+		list(COMSIG_TECHWEB_ADD_DESIGN, COMSIG_TECHWEB_REMOVE_DESIGN),
+		.proc/on_techweb_update
+	)
 	return ..()
 
+/obj/machinery/mecha_part_fabricator/proc/on_techweb_update()
+	SIGNAL_HANDLER
+
+	// We're probably going to get more than one update (design) at a time, so batch
+	// them together.
+	addtimer(CALLBACK(src, .proc/update_menu_tech), 0.25 SECONDS, TIMER_UNIQUE | TIMER_OVERRIDE)
+
 /obj/machinery/mecha_part_fabricator/RefreshParts()
+	. = ..()
 	var/T = 0
 
 	//maximum stocking amount (default 300000, 600000 at T4)
@@ -106,7 +116,7 @@
 		var/new_build_time = (new_const_time / last_const_time) * const_time_left
 		build_finish = world.time + new_build_time
 
-	update_static_data(usr)
+	update_static_data_for_all_viewers()
 
 /obj/machinery/mecha_part_fabricator/examine(mob/user)
 	. = ..()
@@ -183,6 +193,8 @@
 					category_override += "H.O.N.K"
 				if(mech_types & EXOSUIT_MODULE_PHAZON)
 					category_override += "Phazon"
+				if(mech_types & EXOSUIT_MODULE_SAVANNAH)
+					category_override += "Savannah-Ivanov"
 
 		else if(ispath(built_item, /obj/item/borg_restart_board))
 			sub_category += "All Cyborgs" //Otherwise the restart board shows in the "parts" category, which seems dumb
@@ -198,7 +210,7 @@
 		"cost" = cost,
 		"id" = D.id,
 		"subCategory" = sub_category,
-		"categoryOverride" = category_override,
+		"category_override" = category_override,
 		"searchMeta" = D.search_metadata
 	)
 
@@ -231,6 +243,8 @@
 					continue
 
 				buildable_parts[cat] += list(part)
+
+	update_static_data_for_all_viewers()
 
 /**
  * Intended to be called when an item starts printing.
@@ -518,12 +532,6 @@
 	usr.set_machine(src)
 
 	switch(action)
-		if("sync_rnd")
-			// Syncronises designs on interface with R&D techweb.
-			update_menu_tech()
-			update_static_data(usr)
-			say("Successfully synchronized with R&D server.")
-			return
 		if("add_queue_set")
 			// Add all parts of a set to queue
 			var/part_list = params["part_list"]

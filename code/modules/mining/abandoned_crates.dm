@@ -45,6 +45,9 @@
 			if(input == code)
 				if(!spawned_loot)
 					spawn_loot()
+				if(qdel_on_open)
+					qdel(src)
+					return
 				tamperproof = 0 // set explosion chance to zero, so we dont accidently hit it with a multitool and instantly die
 				togglelock(user)
 			else if(!input || !sanitycheck || length(sanitised) != codelen)
@@ -55,8 +58,9 @@
 				attempts--
 				if(attempts == 0)
 					boom(user)
-	else
-		return ..()
+		return
+
+	return ..()
 
 /obj/structure/closet/crate/secure/loot/AltClick(mob/living/user)
 	if(!user.canUseTopic(src, BE_CLOSE))
@@ -106,18 +110,14 @@
 
 /obj/structure/closet/crate/secure/loot/togglelock(mob/user, silent = FALSE)
 	if(!locked)
-		. = ..()
-		if(locked)
+		. = ..() //Run the normal code.
+		if(locked) //Double check if the crate actually locked itself when the normal code ran.
 			//reset the anti-tampering, number of attempts and last attempt when the lock is re-enabled.
 			tamperproof = initial(tamperproof)
 			attempts = initial(attempts)
 			lastattempt = null
 		return
 	if(tamperproof)
-		boom(user)
-		return
-	if (qdel_on_open)
-		qdel(src)
 		return
 	return ..()
 
@@ -131,11 +131,11 @@
 	var/loot = rand(1,100) //100 different crates with varying chances of spawning
 	switch(loot)
 		if(1 to 5) //5% chance
-			new /obj/item/reagent_containers/food/drinks/bottle/rum(src)
-			new /obj/item/reagent_containers/food/drinks/bottle/whiskey(src)
-			new /obj/item/reagent_containers/food/drinks/bottle/whiskey(src)
+			new /obj/item/reagent_containers/cup/glass/bottle/rum(src)
+			new /obj/item/reagent_containers/cup/glass/bottle/whiskey(src)
+			new /obj/item/reagent_containers/cup/glass/bottle/whiskey(src)
 			new /obj/item/lighter(src)
-			new /obj/item/reagent_containers/food/drinks/bottle/absinthe/premium(src)
+			new /obj/item/reagent_containers/cup/glass/bottle/absinthe/premium(src)
 			for(var/i in 1 to 3)
 				new /obj/item/clothing/mask/cigarette/rollie(src)
 		if(6 to 10)
@@ -157,7 +157,7 @@
 			for(var/i in 1 to 5)
 				new /obj/item/toy/snappop/phoenix(src)
 		if(41 to 45)
-			new /obj/item/pda/clear(src)
+			new /obj/item/modular_computer/tablet/pda/clear(src)
 		if(46 to 50)
 			new /obj/item/storage/box/syndie_kit/chameleon/broken
 		if(51 to 52) // 2% chance
@@ -180,7 +180,7 @@
 		if(63 to 64)
 			new /obj/item/clothing/shoes/kindle_kicks(src)
 		if(65 to 66)
-			new /obj/item/clothing/suit/ianshirt(src)
+			new /obj/item/clothing/suit/costume/ianshirt(src)
 			new /obj/item/clothing/suit/hooded/ian_costume(src)
 		if(67 to 68)
 			new /obj/item/toy/plush/awakenedplushie(src)
@@ -205,7 +205,7 @@
 		if(87) //1% chance
 			new /obj/item/weed_extract(src)
 		if(88)
-			new /obj/item/reagent_containers/food/drinks/bottle/lizardwine(src)
+			new /obj/item/reagent_containers/cup/glass/bottle/lizardwine(src)
 		if(89)
 			new /obj/item/melee/energy/sword/bananium(src)
 		if(90)

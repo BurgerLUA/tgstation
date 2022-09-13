@@ -5,6 +5,8 @@
 	var/heat_capacity = INFINITY //This should be opt in rather then opt out
 	///Archived version of the temperature on a turf
 	var/temperature_archived
+	///All currently stored conductivities changes
+	var/list/thermal_conductivities
 
 	///list of turfs adjacent to us that air can flow onto
 	var/list/atmos_adjacent_turfs
@@ -54,8 +56,7 @@
 
 /turf/open/Initialize(mapload)
 	if(!blocks_air)
-		air = new
-		air.copy_from_turf(src)
+		air = create_gas_mixture()
 		if(planetary_atmos)
 			if(!SSair.planetary[initial_gas_mix])
 				var/datum/gas_mixture/immutable/planetary/mix = new
@@ -72,6 +73,18 @@
 	return ..()
 
 /////////////////GAS MIXTURE PROCS///////////////////
+
+///Copies all gas info from the turf into a new gas_mixture, along with our temperature
+///Returns the created gas_mixture
+/turf/proc/create_gas_mixture()
+	var/datum/gas_mixture/mix = SSair.parse_gas_string(initial_gas_mix)
+
+	//acounts for changes in temperature
+	var/turf/parent = parent_type
+	if(temperature != initial(temperature) || temperature != initial(parent.temperature))
+		mix.temperature = temperature
+
+	return mix
 
 /turf/open/assume_air(datum/gas_mixture/giver) //use this for machines to adjust air
 	if(!giver)
@@ -98,8 +111,7 @@
 
 /turf/return_air()
 	RETURN_TYPE(/datum/gas_mixture)
-	var/datum/gas_mixture/copied_mixture = new
-	copied_mixture.copy_from_turf(src)
+	var/datum/gas_mixture/copied_mixture = create_gas_mixture()
 	return copied_mixture
 
 /turf/open/return_air()
@@ -132,10 +144,6 @@
 		max_fire_temperature_sustained = 0
 	else
 		to_be_destroyed = FALSE
-
-/turf/open/burn()
-	if(!active_hotspot) //Might not even be needed since excited groups are no longer cringe
-		..()
 
 /turf/temperature_expose(datum/gas_mixture/air, exposed_temperature)
 	atmos_expose(air, exposed_temperature)
@@ -643,20 +651,22 @@ Then we space some of our heat, and think about if we should stop conducting.
 /turf/proc/radiate_to_spess() //Radiate excess tile heat to space
 	if(temperature <= T0C) //Considering 0 degC as te break even point for radiation in and out
 		return
-	var/delta_temperature = (temperature_archived - TCMB) //hardcoded space temperature
+	// Because we keep losing energy, makes more sense for us to be the T2 here.
+	var/delta_temperature = temperature_archived - TCMB //hardcoded space temperature
 	if(heat_capacity <= 0 || abs(delta_temperature) <= MINIMUM_TEMPERATURE_DELTA_TO_CONSIDER)
 		return
-	var/heat = thermal_conductivity * delta_temperature * \
-		(heat_capacity * HEAT_CAPACITY_VACUUM / (heat_capacity + HEAT_CAPACITY_VACUUM))
-	temperature -= heat/heat_capacity
+	// Heat should be positive in most cases
+	// coefficient applied first because some turfs have very big heat caps.
+	var/heat = CALCULATE_CONDUCTION_ENERGY(thermal_conductivity * delta_temperature, HEAT_CAPACITY_VACUUM, heat_capacity)
+	temperature -= heat / heat_capacity
 
 /turf/open/proc/temperature_share_open_to_solid(turf/sharer)
 	sharer.temperature = air.temperature_share(null, sharer.thermal_conductivity, sharer.temperature, sharer.heat_capacity)
 
 /turf/proc/share_temperature_mutual_solid(turf/sharer, conduction_coefficient) //This is all just heat sharing, don't get freaked out
-	var/delta_temperature = (temperature_archived - sharer.temperature_archived)
-	if(abs(delta_temperature) > MINIMUM_TEMPERATURE_DELTA_TO_CONSIDER && heat_capacity && sharer.heat_capacity)
-		var/heat = conduction_coefficient * delta_temperature * \
-			(heat_capacity * sharer.heat_capacity / (heat_capacity + sharer.heat_capacity)) //The larger the combined capacity the less is shared
-		temperature -= heat / heat_capacity //The higher your own heat cap the less heat you get from this arrangement
-		sharer.temperature += heat / sharer.heat_capacity
+	var/delta_temperature = sharer.temperature_archived - temperature_archived
+	if(abs(delta_temperature) <= MINIMUM_TEMPERATURE_DELTA_TO_CONSIDER || !heat_capacity || !sharer.heat_capacity)
+		return
+	var/heat = conduction_coefficient * CALCULATE_CONDUCTION_ENERGY(delta_temperature, heat_capacity, sharer.heat_capacity)
+	temperature += heat / heat_capacity //The higher your own heat cap the less heat you get from this arrangement
+	sharer.temperature -= heat / sharer.heat_capacity

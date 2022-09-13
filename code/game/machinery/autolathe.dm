@@ -3,9 +3,7 @@
 	desc = "It produces items using iron, glass, plastic and maybe some more."
 	icon_state = "autolathe"
 	density = TRUE
-	use_power = IDLE_POWER_USE
-	idle_power_usage = 10
-	active_power_usage = 100
+	active_power_usage = BASE_MACHINE_ACTIVE_CONSUMPTION * 0.5
 	circuit = /obj/item/circuitboard/machine/autolathe
 	layer = BELOW_OBJ_LAYER
 
@@ -32,22 +30,22 @@
 	var/hacked_price = 50
 
 	var/list/categories = list(
-							"Tools",
-							"Electronics",
-							"Construction",
-							"T-Comm",
-							"Security",
-							"Machinery",
-							"Medical",
-							"Misc",
-							"Dinnerware",
-							"Imported"
+							RND_CATEGORY_TOOLS,
+							RND_CATEGORY_EQUIPMENT,
+							RND_CATEGORY_CONSTRUCTION,
+							RND_CATEGORY_MATERIAL,
+							RND_CATEGORY_TELECOMMS,
+							RND_CATEGORY_SECURITY,
+							RND_CATEGORY_MACHINERY,
+							RND_CATEGORY_MEDICAL,
+							RND_CATEGORY_MISC,
+							RND_CATEGORY_DINNERWARE,
+							RND_CATEGORY_IMPORTED
 							)
 
 /obj/machinery/autolathe/Initialize(mapload)
 	AddComponent(/datum/component/material_container, SSmaterials.materials_by_category[MAT_CATEGORY_ITEM_MATERIAL], 0, MATCONTAINER_EXAMINE, _after_insert = CALLBACK(src, .proc/AfterMaterialInsert))
 	. = ..()
-
 	wires = new /datum/wires/autolathe(src)
 	stored_research = new /datum/techweb/specialized/autounlocking/autolathe
 	matching_designs = list()
@@ -114,9 +112,9 @@
 				var/datum/component/material_container/mats = GetComponent(/datum/component/material_container)
 				for(var/datum/material/mat in D.materials)
 					max_multiplier = min(D.maxstack, round(mats.get_material_amount(mat)/D.materials[mat]))
-				if (max_multiplier>10 && !disabled)
+				if (max_multiplier >= 10 && !disabled)
 					m10 = TRUE
-				if (max_multiplier>25 && !disabled)
+				if (max_multiplier >= 25 && !disabled)
 					m25 = TRUE
 		else
 			if(!unbuildable)
@@ -176,8 +174,8 @@
 				return
 
 			var/multiplier = text2num(params["multiplier"])
-			if(!multiplier)
-				to_chat(usr, span_alert("[src] only accepts a numerical multiplier!"))
+			if(!multiplier || !IS_FINITE(multiplier))
+				stack_trace("Invalid multiplier value in stack creation [multiplier], [usr] is likely attempting an exploit")
 				return
 			var/is_stack = ispath(being_built.build_path, /obj/item/stack)
 			multiplier = clamp(round(multiplier),1,50)
@@ -190,7 +188,7 @@
 			for(var/MAT in being_built.materials)
 				total_amount += being_built.materials[MAT]
 
-			var/power = max(2000, (total_amount)*multiplier/5) //Change this to use all materials
+			var/power = max(active_power_usage, (total_amount)*multiplier/5) //Change this to use all materials
 
 			var/datum/component/material_container/materials = GetComponent(/datum/component/material_container)
 
@@ -307,7 +305,7 @@
 	else
 		flick("autolathe_o", src)//plays metal insertion animation
 
-		use_power(min(1000, amount_inserted / 100))
+		use_power(min(active_power_usage * 0.25, amount_inserted / 100))
 
 /obj/machinery/autolathe/proc/make_item(power, list/materials_used, list/picked_materials, multiplier, coeff, is_stack, mob/user)
 	var/datum/component/material_container/materials = GetComponent(/datum/component/material_container)
@@ -337,6 +335,7 @@
 	busy = FALSE
 
 /obj/machinery/autolathe/RefreshParts()
+	. = ..()
 	var/mat_capacity = 0
 	for(var/obj/item/stock_parts/matter_bin/new_matter_bin in component_parts)
 		mat_capacity += new_matter_bin.rating*75000
@@ -410,7 +409,7 @@
 	hacked = state
 	for(var/id in SSresearch.techweb_designs)
 		var/datum/design/D = SSresearch.techweb_design_by_id(id)
-		if((D.build_type & AUTOLATHE) && ("hacked" in D.category))
+		if((D.build_type & AUTOLATHE) && (RND_CATEGORY_HACKED in D.category))
 			if(hacked)
 				stored_research.add_design(D)
 			else

@@ -82,7 +82,7 @@
 	appearance_flags = PLANE_MASTER //should use client color
 	blend_mode = BLEND_OVERLAY
 
-/atom/movable/screen/plane_master/game_world_fov_hidden/Initialize()
+/atom/movable/screen/plane_master/game_world_fov_hidden/Initialize(mapload)
 	. = ..()
 	add_filter("vision_cone", 1, alpha_mask_filter(render_source = FIELD_OF_VISION_BLOCKER_RENDER_TARGET, flags = MASK_INVERSE))
 
@@ -135,7 +135,6 @@
 	name = "darkness plane master"
 	plane = BLACKNESS_PLANE
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
-	color = list(null, null, null, "#0000", "#000f")
 	blend_mode = BLEND_MULTIPLY
 	appearance_flags = PLANE_MASTER | NO_CLIENT_COLOR | PIXEL_SCALE
 	//byond internal end
@@ -200,6 +199,20 @@
 	name = "parallax whitifier plane master"
 	plane = PLANE_SPACE
 
+/atom/movable/screen/plane_master/pipecrawl
+	name = "pipecrawl plane master"
+	plane = PIPECRAWL_IMAGES_PLANE
+	appearance_flags = PLANE_MASTER
+	blend_mode = BLEND_OVERLAY
+
+/atom/movable/screen/plane_master/pipecrawl/Initialize(mapload)
+	. = ..()
+	// Makes everything on this plane slightly brighter
+	// Has a nice effect, makes thing stand out
+	color = list(1.2,0,0,0, 0,1.2,0,0, 0,0,1.2,0, 0,0,0,1, 0,0,0,0)
+	// This serves a similar purpose, I want the pipes to pop
+	add_filter("pipe_dropshadow", 1, drop_shadow_filter(x = -1, y= -1, size = 1, color = "#0000007A"))
+
 /atom/movable/screen/plane_master/camera_static
 	name = "camera static plane master"
 	plane = CAMERA_STATIC_PLANE
@@ -247,11 +260,6 @@
 	name = "area plane"
 	plane = AREA_PLANE
 
-/atom/movable/screen/plane_master/radtext
-	name = "radtext plane"
-	plane = RAD_TEXT_PLANE
-	render_relay_plane = RENDER_PLANE_NON_GAME
-
 /atom/movable/screen/plane_master/balloon_chat
 	name = "balloon alert plane"
 	plane = BALLOON_CHAT_PLANE
@@ -269,3 +277,18 @@
 	render_target = FIELD_OF_VISION_BLOCKER_RENDER_TARGET
 	mouse_opacity = MOUSE_OPACITY_TRANSPARENT
 	render_relay_plane = null
+
+/atom/movable/screen/plane_master/hud
+	name = "HUD plane"
+	plane = HUD_PLANE
+	render_relay_plane = RENDER_PLANE_NON_GAME
+
+/atom/movable/screen/plane_master/above_hud
+	name = "above HUD plane"
+	plane = ABOVE_HUD_PLANE
+	render_relay_plane = RENDER_PLANE_NON_GAME
+
+/atom/movable/screen/plane_master/splashscreen
+	name = "splashscreen plane"
+	plane = SPLASHSCREEN_PLANE
+	render_relay_plane = RENDER_PLANE_NON_GAME

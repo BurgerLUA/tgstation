@@ -8,11 +8,12 @@
 /obj/machinery/iv_drip
 	name = "\improper IV drip"
 	desc = "An IV drip with an advanced infusion pump that can both drain blood into and inject liquids from attached containers. Blood packs are injected at twice the displayed rate. Right-Click to detach the IV or the attached container."
-	icon = 'icons/obj/iv_drip.dmi'
+	icon = 'icons/obj/medical/iv_drip.dmi'
 	icon_state = "iv_drip"
 	base_icon_state = "iv_drip"
 	anchored = FALSE
 	mouse_drag_pointer = MOUSE_ACTIVE_POINTER
+	use_power = NO_POWER_USE
 	///Who are we sticking our needle in?
 	var/mob/living/carbon/attached
 	///Are we donating or injecting?
@@ -26,8 +27,7 @@
 	///Typecache of containers we accept
 	var/static/list/drip_containers = typecacheof(list(
 		/obj/item/reagent_containers/blood,
-		/obj/item/reagent_containers/food,
-		/obj/item/reagent_containers/glass,
+		/obj/item/reagent_containers/cup,
 		/obj/item/reagent_containers/chem_pack,
 	))
 	// If the blood draining tab should be greyed out
@@ -38,6 +38,7 @@
 	update_appearance()
 	if(use_internal_storage)
 		create_reagents(100, TRANSPARENT)
+	interaction_flags_machine |= INTERACT_MACHINE_OFFLINE
 
 /obj/machinery/iv_drip/Destroy()
 	attached = null
@@ -99,7 +100,7 @@
 	if(!target_reagents)
 		return
 
-	var/mutable_appearance/filling_overlay = mutable_appearance('icons/obj/iv_drip.dmi', "reagent")
+	var/mutable_appearance/filling_overlay = mutable_appearance('icons/obj/medical/iv_drip.dmi', "reagent")
 	var/percent = round((target_reagents.total_volume / target_reagents.maximum_volume) * 100)
 	switch(percent)
 		if(0 to 9)
@@ -154,7 +155,7 @@
 			return
 		reagent_container = W
 		to_chat(user, span_notice("You attach [W] to [src]."))
-		user.log_message("attached a [W] to [src] at [AREACOORD(src)] containing ([reagent_container.reagents.log_list()])", LOG_ATTACK)
+		user.log_message("attached a [W] to [src] at [AREACOORD(src)] containing ([reagent_container.reagents.get_reagent_log_string()])", LOG_ATTACK)
 		add_fingerprint(user)
 		update_appearance()
 		return
@@ -232,7 +233,7 @@
 		return
 	usr.visible_message(span_warning("[usr] attaches [src] to [target]."), span_notice("You attach [src] to [target]."))
 	var/datum/reagents/container = get_reagent_holder()
-	log_combat(usr, target, "attached", src, "containing: ([container.log_list()])")
+	log_combat(usr, target, "attached", src, "containing: ([container.get_reagent_log_string()])")
 	add_fingerprint(usr)
 	attached = target
 	START_PROCESSING(SSmachines, src)
@@ -315,12 +316,9 @@
 	inject_only = TRUE
 
 /obj/machinery/iv_drip/saline/Initialize(mapload)
-	. = ..()
-	reagent_container = new /obj/item/reagent_containers/glass/saline(src)
-
-/obj/machinery/iv_drip/saline/ComponentInitialize()
-	. = ..()
 	AddElement(/datum/element/update_icon_blocker)
+	. = ..()
+	reagent_container = new /obj/item/reagent_containers/cup/saline(src)
 
 /obj/machinery/iv_drip/saline/eject_beaker()
 	return
@@ -342,11 +340,11 @@
 	. = ..()
 	AddComponent(/datum/component/plumbing/iv_drip, anchored)
 	AddComponent(/datum/component/simple_rotation)
-	
-/obj/machinery/iv_drip/plumbing/wrench_act(mob/living/user, obj/item/I)
-	..()
-	default_unfasten_wrench(user, I)
-	return TRUE
+
+/obj/machinery/iv_drip/plumbing/wrench_act(mob/living/user, obj/item/tool)
+	. = ..()
+	default_unfasten_wrench(user, tool)
+	return TOOL_ACT_TOOLTYPE_SUCCESS
 
 #undef IV_TAKING
 #undef IV_INJECTING

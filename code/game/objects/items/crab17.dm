@@ -1,7 +1,7 @@
 /obj/item/suspiciousphone
 	name = "suspicious phone"
 	desc = "This device raises pink levels to unknown highs."
-	icon = 'icons/obj/items_and_weapons.dmi'
+	icon = 'icons/obj/weapons/items_and_weapons.dmi'
 	icon_state = "suspiciousphone"
 	w_class = WEIGHT_CLASS_SMALL
 	attack_verb_continuous = list("dumps")
@@ -30,6 +30,11 @@
 			var/datum/bank_account/B = i
 			B.being_dumped = TRUE
 		new /obj/effect/dumpeet_target(targetturf, L)
+
+		to_chat(user, span_notice("You have activated Protocol CRAB-17."))
+		message_admins("[ADMIN_LOOKUPFLW(user)] has activated Protocol CRAB-17.")
+		user.log_message("activated Protocol CRAB-17.", LOG_GAME)
+
 		dumped = TRUE
 
 /obj/structure/checkoutmachine
@@ -244,6 +249,6 @@
 
 /obj/effect/dumpeet_target/proc/endLaunch()
 	QDEL_NULL(DF) //Delete the falling machine effect, because at this point its animation is over. We dont use temp_visual because we want to manually delete it as soon as the pod appears
-	playsound(src, "explosion", 80, TRUE)
+	playsound(src, SFX_EXPLOSION, 80, TRUE)
 	dump.forceMove(get_turf(src))
 	qdel(src) //The target's purpose is complete. It can rest easy now

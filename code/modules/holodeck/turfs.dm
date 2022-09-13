@@ -45,6 +45,10 @@
 	name = "white floor"
 	icon_state = "white"
 
+/turf/open/floor/holofloor/pure_white
+	name = "white floor"
+	icon_state = "pure_white"
+
 /turf/open/floor/holofloor/plating/burnmix
 	name = "burn-mix floor"
 	initial_gas_mix = BURNMIX_ATMOS
@@ -111,7 +115,7 @@
 	icon_state = "0"
 
 /turf/open/floor/holofloor/space/Initialize(mapload)
-	icon_state = SPACE_ICON_STATE // so realistic
+	icon_state = SPACE_ICON_STATE(x, y, z) // so realistic
 	. = ..()
 
 /turf/open/floor/holofloor/hyperspace

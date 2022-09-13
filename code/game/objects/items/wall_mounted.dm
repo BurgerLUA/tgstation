@@ -62,7 +62,7 @@
 	// For camera-building borgs
 	var/turf/T = get_step(get_turf(user), user.dir)
 	if(iswallturf(T))
-		T.attackby(user, tool)
+		T.attackby(src, user)
 	return TOOL_ACT_TOOLTYPE_SUCCESS
 
 /obj/item/wallframe/wrench_act(mob/living/user, obj/item/tool)
@@ -84,10 +84,10 @@
 	icon = 'icons/obj/module.dmi'
 	icon_state = "door_electronics"
 	inhand_icon_state = "electronic"
-	lefthand_file = 'icons/mob/inhands/misc/devices_lefthand.dmi'
-	righthand_file = 'icons/mob/inhands/misc/devices_righthand.dmi'
+	lefthand_file = 'icons/mob/inhands/items/devices_lefthand.dmi'
+	righthand_file = 'icons/mob/inhands/items/devices_righthand.dmi'
 	flags_1 = CONDUCT_1
 	w_class = WEIGHT_CLASS_SMALL
 	custom_materials = list(/datum/material/iron=50, /datum/material/glass=50)
 	grind_results = list(/datum/reagent/iron = 10, /datum/reagent/silicon = 10)
-	custom_price = PAYCHECK_EASY * 0.5
+	custom_price = PAYCHECK_CREW * 0.5

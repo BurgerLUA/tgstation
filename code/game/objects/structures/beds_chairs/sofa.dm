@@ -7,9 +7,10 @@
 	var/mutable_appearance/armrest
 
 /obj/structure/chair/sofa/Initialize(mapload)
-	armrest = mutable_appearance(icon, "[icon_state]_armrest", ABOVE_MOB_LAYER)
+	. = ..()
+	armrest = mutable_appearance(initial(icon), "[icon_state]_armrest", ABOVE_MOB_LAYER)
 	armrest.plane = GAME_PLANE_UPPER
-	return ..()
+	AddElement(/datum/element/soft_landing)
 
 /obj/structure/chair/sofa/electrify_self(obj/item/assembly/shock_kit/input_shock_kit, mob/user, list/overlays_from_child_procs)
 	if(!overlays_from_child_procs)
@@ -56,6 +57,9 @@
 
 /obj/structure/chair/sofa/corp/corner
 	icon_state = "corp_sofacorner"
+
+/obj/structure/chair/sofa/corp/corner/handle_layer() //only the armrest/back of this chair should cover the mob.
+	return
 
 // Ported from Skyrat
 /obj/structure/chair/sofa/bench

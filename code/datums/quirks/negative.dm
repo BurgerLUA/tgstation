@@ -2,7 +2,7 @@
 
 /datum/quirk/badback
 	name = "Bad Back"
-	desc = "Thanks to your poor posture, backpacks and other bags never sit right on your back. More evently weighted objects are fine, though."
+	desc = "Thanks to your poor posture, backpacks and other bags never sit right on your back. More evenly weighted objects are fine, though."
 	icon = "hiking"
 	value = -8
 	mood_quirk = TRUE
@@ -16,7 +16,7 @@
 	var/mob/living/carbon/human/human_holder = quirk_holder
 	var/obj/item/storage/backpack/equipped_backpack = human_holder.back
 	if(istype(equipped_backpack))
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "back_pain", /datum/mood_event/back_pain)
+		quirk_holder.add_mood_event("back_pain", /datum/mood_event/back_pain)
 		RegisterSignal(human_holder.back, COMSIG_ITEM_POST_UNEQUIP, .proc/on_unequipped_backpack)
 	else
 		RegisterSignal(quirk_holder, COMSIG_MOB_EQUIPPED_ITEM, .proc/on_equipped_item)
@@ -27,7 +27,7 @@
 	var/obj/item/storage/equipped_backpack = backpack?.resolve()
 	if(equipped_backpack)
 		UnregisterSignal(equipped_backpack, COMSIG_ITEM_POST_UNEQUIP)
-		SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "back_pain")
+		quirk_holder.clear_mood_event("back_pain")
 
 /// Signal handler for when the quirk_holder equips an item. If it's a backpack, adds the back_pain mood event.
 /datum/quirk/badback/proc/on_equipped_item(mob/living/source, obj/item/equipped_item, slot)
@@ -36,7 +36,7 @@
 	if((slot != ITEM_SLOT_BACK) || !istype(equipped_item, /obj/item/storage/backpack))
 		return
 
-	SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "back_pain", /datum/mood_event/back_pain)
+	quirk_holder.add_mood_event("back_pain", /datum/mood_event/back_pain)
 	RegisterSignal(equipped_item, COMSIG_ITEM_POST_UNEQUIP, .proc/on_unequipped_backpack)
 	UnregisterSignal(quirk_holder, COMSIG_MOB_EQUIPPED_ITEM)
 	backpack = WEAKREF(equipped_item)
@@ -46,7 +46,7 @@
 	SIGNAL_HANDLER
 
 	UnregisterSignal(source, COMSIG_ITEM_POST_UNEQUIP)
-	SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "back_pain")
+	quirk_holder.clear_mood_event("back_pain")
 	backpack = null
 	RegisterSignal(quirk_holder, COMSIG_MOB_EQUIPPED_ITEM, .proc/on_equipped_item)
 
@@ -201,7 +201,7 @@
 
 	var/obj/family_heirloom = heirloom?.resolve()
 	if(!family_heirloom)
-		to_chat(quirk_holder, "<span class='boldnotice'>A wave of existential dread runs over you as you realise your precious family heirloom is missing. Perhaps the Gods will show mercy on your cursed soul?</span>")
+		to_chat(quirk_holder, "<span class='boldnotice'>A wave of existential dread runs over you as you realize your precious family heirloom is missing. Perhaps the Gods will show mercy on your cursed soul?</span>")
 		return
 	family_heirloom.AddComponent(/datum/component/heirloom, quirk_holder.mind, family_name)
 
@@ -214,15 +214,15 @@
 	var/obj/family_heirloom = heirloom?.resolve()
 
 	if(family_heirloom && (family_heirloom in quirk_holder.get_all_contents()))
-		SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "family_heirloom_missing")
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "family_heirloom", /datum/mood_event/family_heirloom)
+		quirk_holder.clear_mood_event("family_heirloom_missing")
+		quirk_holder.add_mood_event("family_heirloom", /datum/mood_event/family_heirloom)
 	else
-		SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "family_heirloom")
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "family_heirloom_missing", /datum/mood_event/family_heirloom_missing)
+		quirk_holder.clear_mood_event("family_heirloom")
+		quirk_holder.add_mood_event("family_heirloom_missing", /datum/mood_event/family_heirloom_missing)
 
 /datum/quirk/item_quirk/family_heirloom/remove()
-	SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "family_heirloom_missing")
-	SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "family_heirloom")
+	quirk_holder.clear_mood_event("family_heirloom_missing")
+	quirk_holder.clear_mood_event("family_heirloom")
 
 /datum/quirk/frail
 	name = "Frail"
@@ -232,7 +232,7 @@
 	mob_trait = TRAIT_EASILY_WOUNDED
 	gain_text = "<span class='danger'>You feel frail.</span>"
 	lose_text = "<span class='notice'>You feel sturdy again.</span>"
-	medical_record_text = "Patient is absurdly easy to injure. Please take all due dilligence to avoid possible malpractice suits."
+	medical_record_text = "Patient is absurdly easy to injure. Please take all due diligence to avoid possible malpractice suits."
 	hardcore_value = 4
 
 /datum/quirk/heavy_sleeper
@@ -257,14 +257,12 @@
 	hardcore_value = 3
 
 /datum/quirk/hypersensitive/add()
-	var/datum/component/mood/mood = quirk_holder.GetComponent(/datum/component/mood)
-	if(mood)
-		mood.mood_modifier += 0.5
+	if (quirk_holder.mob_mood)
+		quirk_holder.mob_mood.mood_modifier += 0.5
 
 /datum/quirk/hypersensitive/remove()
-	var/datum/component/mood/mood = quirk_holder.GetComponent(/datum/component/mood)
-	if(mood)
-		mood.mood_modifier -= 0.5
+	if (quirk_holder.mob_mood)
+		quirk_holder.mob_mood.mood_modifier -= 0.5
 
 /datum/quirk/light_drinker
 	name = "Light Drinker"
@@ -310,7 +308,7 @@
 
 /datum/quirk/nyctophobia
 	name = "Nyctophobia"
-	desc = "As far as you can remember, you've always been afraid of the dark. While in the dark without a light source, you instinctually act careful, and constantly feel a sense of dread."
+	desc = "As far as you can remember, you've always been afraid of the dark. While in the dark without a light source, you instinctively act careful, and constantly feel a sense of dread."
 	icon = "lightbulb"
 	value = -3
 	medical_record_text = "Patient demonstrates a fear of the dark. (Seriously?)"
@@ -321,7 +319,7 @@
 
 /datum/quirk/nyctophobia/remove()
 	UnregisterSignal(quirk_holder, COMSIG_MOVABLE_MOVED)
-	SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "nyctophobia")
+	quirk_holder.clear_mood_event("nyctophobia")
 
 /// Called when the quirk holder moves. Updates the quirk holder's mood.
 /datum/quirk/nyctophobia/proc/on_holder_moved(mob/living/source, atom/old_loc, dir, forced)
@@ -342,14 +340,14 @@
 
 	var/lums = holder_turf.get_lumcount()
 
-	if(lums > 0.2)
-		SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "nyctophobia")
+	if(lums > LIGHTING_TILE_IS_DARK)
+		quirk_holder.clear_mood_event("nyctophobia")
 		return
 
 	if(quirk_holder.m_intent == MOVE_INTENT_RUN)
 		to_chat(quirk_holder, span_warning("Easy, easy, take it slow... you're in the dark..."))
 		quirk_holder.toggle_move_intent()
-	SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "nyctophobia", /datum/mood_event/nyctophobia)
+	quirk_holder.add_mood_event("nyctophobia", /datum/mood_event/nyctophobia)
 
 /datum/quirk/nonviolent
 	name = "Pacifist"
@@ -381,7 +379,7 @@
 	var/obj/structure/chair/spawn_chair = locate() in holder_turf
 
 	var/obj/vehicle/ridden/wheelchair/wheels
-	if(quirk_holder.client?.get_award_status(HARDCORE_RANDOM_SCORE) >= 5000) //More than 5k score? you unlock the gamer wheelchair.
+	if(quirk_holder.client?.get_award_status(/datum/award/score/hardcore_random) >= 5000) //More than 5k score? you unlock the gamer wheelchair.
 		wheels = new /obj/vehicle/ridden/wheelchair/gold(holder_turf)
 	else
 		wheels = new(holder_turf)
@@ -519,10 +517,9 @@
 	if(HAS_TRAIT(quirk_holder, TRAIT_FEARLESS))
 		return
 
-	var/datum/component/mood/mood = quirk_holder.GetComponent(/datum/component/mood)
 	var/moodmod
-	if(mood)
-		moodmod = (1+0.02*(50-(max(50, mood.mood_level*(7-mood.sanity_level))))) //low sanity levels are better, they max at 6
+	if(quirk_holder.mob_mood)
+		moodmod = (1+0.02*(50-(max(50, quirk_holder.mob_mood.mood_level*(7-quirk_holder.mob_mood.sanity_level))))) //low sanity levels are better, they max at 6
 	else
 		moodmod = (1+0.02*(50-(max(50, 0.1*quirk_holder.nutrition))))
 	var/nearby_people = 0
@@ -542,26 +539,13 @@
 					to_chat(quirker, span_danger("You feel self-conscious and stop talking. You need a moment to recover!"))
 					break
 			if(prob(max(5,(nearby_people*12.5*moodmod)))) //Minimum 1/20 chance of stutter
-				word = html_decode(word)
-				var/leng = length(word)
-				var/stuttered = ""
-				var/newletter = ""
-				var/rawchar = ""
-				var/static/regex/nostutter = regex(@@[aeiouAEIOU ""''()[\]{}.!?,:;_`~-]@)
-				for(var/i = 1, i <= leng, i += length(rawchar))
-					rawchar = newletter = word[i]
-					if(prob(80) && !nostutter.Find(rawchar))
-						if(prob(10))
-							newletter = "[newletter]-[newletter]-[newletter]-[newletter]"
-						else if(prob(20))
-							newletter = "[newletter]-[newletter]-[newletter]"
-						else
-							newletter = "[newletter]-[newletter]"
-					stuttered += newletter
-				sanitize(stuttered)
-				new_message += stuttered
+				// Add a short stutter, THEN treat our word
+				quirker.adjust_timed_status_effect(0.5 SECONDS, /datum/status_effect/speech/stutter)
+				new_message += quirker.treat_message(word, capitalize_message = FALSE)
+
 			else
 				new_message += word
+
 		message = jointext(new_message, " ")
 	var/mob/living/carbon/human/quirker = quirk_holder
 	if(prob(min(50,(0.50*(nearby_people*12.5)*moodmod)))) //Max 50% chance of not talking
@@ -602,21 +586,21 @@
 
 	switch(rand(1,3))
 		if(1)
-			quirk_holder.Jitter(10)
+			quirk_holder.set_timed_status_effect(20 SECONDS, /datum/status_effect/jitter, only_if_higher = TRUE)
 			msg += "causing you to start fidgeting!"
 		if(2)
-			quirk_holder.stuttering = max(3, quirk_holder.stuttering)
+			quirk_holder.set_timed_status_effect(6 SECONDS, /datum/status_effect/speech/stutter, only_if_higher = TRUE)
 			msg += "causing you to start stuttering!"
 		if(3)
 			quirk_holder.Stun(2 SECONDS)
 			msg += "causing you to freeze up!"
 
-	SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "anxiety_eyecontact", /datum/mood_event/anxiety_eyecontact)
+	quirk_holder.add_mood_event("anxiety_eyecontact", /datum/mood_event/anxiety_eyecontact)
 	addtimer(CALLBACK(GLOBAL_PROC, .proc/to_chat, quirk_holder, span_userdanger("[msg]")), 3) // so the examine signal has time to fire and this will print after
 	return COMSIG_BLOCK_EYECONTACT
 
 /datum/mood_event/anxiety_eyecontact
-	description = "<span class='warning'>Sometimes eye contact makes me so nervous...</span>\n"
+	description = "Sometimes eye contact makes me so nervous..."
 	mood_change = -5
 	timeout = 3 MINUTES
 
@@ -737,7 +721,7 @@
 	var/brand = initial(drug_container_type.name)
 	quirk_holder.mind.add_memory(MEMORY_QUIRK_DRUG, list(DETAIL_FAV_BRAND = brand), memory_flags = MEMORY_FLAG_NOLOCATION | MEMORY_FLAG_NOPERSISTENCE, story_value = STORY_VALUE_SHIT)
 	// smoker lungs have 25% less health and healing
-	var/obj/item/organ/lungs/smoker_lungs = quirk_holder.getorganslot(ORGAN_SLOT_LUNGS)
+	var/obj/item/organ/internal/lungs/smoker_lungs = quirk_holder.getorganslot(ORGAN_SLOT_LUNGS)
 	if (smoker_lungs && !(smoker_lungs.organ_flags & ORGAN_SYNTHETIC)) // robotic lungs aren't affected
 		smoker_lungs.maxHealth = smoker_lungs.maxHealth * 0.75
 		smoker_lungs.healing_factor = smoker_lungs.healing_factor * 0.75
@@ -749,9 +733,9 @@
 	if (istype(mask_item, /obj/item/clothing/mask/cigarette))
 		var/obj/item/storage/fancy/cigarettes/cigarettes = drug_container_type
 		if(istype(mask_item, initial(cigarettes.spawn_type)))
-			SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "wrong_cigs")
+			quirk_holder.clear_mood_event("wrong_cigs")
 			return
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "wrong_cigs", /datum/mood_event/wrong_brand)
+		quirk_holder.add_mood_event("wrong_cigs", /datum/mood_event/wrong_brand)
 
 /datum/quirk/unstable
 	name = "Unstable"
@@ -807,6 +791,9 @@
 	if(IS_IN_STASIS(quirk_holder))
 		return
 
+	if(quirk_holder.stat == DEAD)
+		return
+
 	var/mob/living/carbon/carbon_quirk_holder = quirk_holder
 	for(var/allergy in allergies)
 		var/datum/reagent/instantiated_med = carbon_quirk_holder.reagents.has_reagent(allergy)
@@ -836,23 +823,23 @@
 	hardcore_value = 1
 
 /datum/quirk/bad_touch/add()
-	RegisterSignal(quirk_holder, list(COMSIG_LIVING_GET_PULLED, COMSIG_CARBON_HUGGED, COMSIG_CARBON_HEADPAT, COMSIG_CARBON_TAILPULL), .proc/uncomfortable_touch)
+	RegisterSignal(quirk_holder, list(COMSIG_LIVING_GET_PULLED, COMSIG_CARBON_HELP_ACT), .proc/uncomfortable_touch)
 
 /datum/quirk/bad_touch/remove()
-	UnregisterSignal(quirk_holder, list(COMSIG_LIVING_GET_PULLED, COMSIG_CARBON_HUGGED, COMSIG_CARBON_HEADPAT, COMSIG_CARBON_TAILPULL))
+	UnregisterSignal(quirk_holder, list(COMSIG_LIVING_GET_PULLED, COMSIG_CARBON_HELP_ACT))
 
-/datum/quirk/bad_touch/proc/uncomfortable_touch()
+/// Causes a negative moodlet to our quirk holder on signal
+/datum/quirk/bad_touch/proc/uncomfortable_touch(datum/source)
 	SIGNAL_HANDLER
 
 	if(quirk_holder.stat == DEAD)
 		return
 
 	new /obj/effect/temp_visual/annoyed(quirk_holder.loc)
-	var/datum/component/mood/mood = quirk_holder.GetComponent(/datum/component/mood)
-	if(mood.sanity <= SANITY_NEUTRAL)
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "bad_touch", /datum/mood_event/very_bad_touch)
+	if(quirk_holder.mob_mood.sanity <= SANITY_NEUTRAL)
+		quirk_holder.add_mood_event("bad_touch", /datum/mood_event/very_bad_touch)
 	else
-		SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "bad_touch", /datum/mood_event/bad_touch)
+		quirk_holder.add_mood_event("bad_touch", /datum/mood_event/bad_touch)
 
 /datum/quirk/claustrophobia
 	name = "Claustrophobia"
@@ -864,7 +851,7 @@
 	processing_quirk = TRUE
 
 /datum/quirk/claustrophobia/remove()
-	SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "claustrophobia")
+	quirk_holder.clear_mood_event("claustrophobia")
 
 /datum/quirk/claustrophobia/process(delta_time)
 	if(quirk_holder.stat != CONSCIOUS || quirk_holder.IsSleeping() || quirk_holder.IsUnconscious())
@@ -878,10 +865,10 @@
 			break
 
 	if(!nick_spotted && isturf(quirk_holder.loc))
-		SEND_SIGNAL(quirk_holder, COMSIG_CLEAR_MOOD_EVENT, "claustrophobia", /datum/mood_event/claustrophobia)
+		quirk_holder.clear_mood_event("claustrophobia")
 		return
 
-	SEND_SIGNAL(quirk_holder, COMSIG_ADD_MOOD_EVENT, "claustrophobia")
+	quirk_holder.add_mood_event("claustrophobia", /datum/mood_event/claustrophobia)
 	quirk_holder.losebreath += 0.25 // miss a breath one in four times
 	if(DT_PROB(25, delta_time))
 		if(nick_spotted)
@@ -904,3 +891,12 @@
 		return TRUE
 
 	return FALSE
+
+/datum/quirk/illiterate
+	name = "Illiterate"
+	desc = "You dropped out of school and are unable to read or write. This affects reading, writing, using computers and other electronics."
+	icon = "graduation-cap"
+	value = -8
+	mob_trait = TRAIT_ILLITERATE
+	medical_record_text = "Patient is not literate."
+	hardcore_value = 8
