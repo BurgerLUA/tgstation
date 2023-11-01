@@ -1,6 +1,5 @@
 ///Attaching this element to something will make it float, get a special ai controller, and gives it a spooky outline.
 /datum/element/haunted
-	element_flags = ELEMENT_DETACH
 
 /datum/element/haunted/Attach(datum/target, haunt_color = "#f8f8ff")
 	. = ..()
@@ -25,3 +24,13 @@
 	REMOVE_TRAIT(master, TRAIT_MOVE_FLYING, ELEMENT_TRAIT(type))
 	master.RemoveElement(/datum/element/movetype_handler)
 	return ..()
+
+/atom/movable/proc/make_haunted(source, color) //if not haunted, make haunted
+	if(!HAS_TRAIT(src, TRAIT_HAUNTED))
+		AddElement(/datum/element/haunted, color)
+	ADD_TRAIT(src, TRAIT_HAUNTED, source)
+
+/atom/movable/proc/remove_haunted(source) //if haunted, make not haunted
+	REMOVE_TRAIT(src, TRAIT_HAUNTED, source)
+	if(!HAS_TRAIT(src, TRAIT_HAUNTED))
+		RemoveElement(/datum/element/haunted)

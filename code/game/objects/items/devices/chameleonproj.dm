@@ -40,6 +40,7 @@
 	. = ..()
 	if(!proximity)
 		return
+	. |= AFTERATTACK_PROCESSED_ITEM
 	if(!check_sprite(target))
 		return
 	if(active_dummy)//I now present you the blackli(f)st
@@ -57,12 +58,15 @@
 	if(iseffect(target))
 		if(!(istype(target, /obj/effect/decal))) //be a footprint
 			return
+	make_copy(target, user)
+
+/obj/item/chameleon/proc/make_copy(atom/target, mob/user)
 	playsound(get_turf(src), 'sound/weapons/flash.ogg', 100, TRUE, -6)
 	to_chat(user, span_notice("Scanned [target]."))
-	var/obj/temp = new/obj()
+	var/obj/temp = new /obj()
 	temp.appearance = target.appearance
 	temp.layer = initial(target.layer) // scanning things in your inventory
-	temp.plane = initial(target.plane)
+	SET_PLANE_EXPLICIT(temp, initial(plane), src)
 	saved_appearance = temp.appearance
 
 /obj/item/chameleon/proc/check_sprite(atom/target)
@@ -144,6 +148,7 @@
 
 /obj/effect/dummy/chameleon/ex_act(S, T)
 	master.disrupt()
+	return TRUE
 
 /obj/effect/dummy/chameleon/bullet_act()
 	. = ..()
@@ -168,7 +173,7 @@
 				amount = 25
 
 		can_move = world.time + amount
-		step(src, direction)
+		try_step_multiz(direction)
 	return
 
 /obj/effect/dummy/chameleon/Destroy()

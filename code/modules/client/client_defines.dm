@@ -160,8 +160,6 @@
 
 	///Autoclick list of two elements, first being the clicked thing, second being the parameters.
 	var/list/atom/selected_target[2]
-	///Autoclick variable referencing the associated item.
-	var/obj/item/active_mousedown_item = null
 	///Used in MouseDrag to preserve the original mouse click parameters
 	var/mouseParams = ""
 	///Used in MouseDrag to preserve the last mouse-entered location. Weakref
@@ -172,6 +170,10 @@
 	var/middragtime = 0
 	//Middle-mouse-button clicked object control for aimbot exploit detection. Weakref
 	var/datum/weakref/middle_drag_atom_ref
+	//When we started the currently active drag
+	var/drag_start = 0
+	//The params we were passed at the start of the drag, in list form
+	var/list/drag_details
 
 
 	/// Messages currently seen by this client
@@ -194,6 +196,8 @@
 	var/list/spell_tabs = list()
 	///A lazy list of atoms we've examined in the last RECENT_EXAMINE_MAX_WINDOW (default 2) seconds, so that we will call [/atom/proc/examine_more] instead of [/atom/proc/examine] on them when examining
 	var/list/recent_examines
+	///Our object window datum. It stores info about and handles behavior for the object tab
+	var/datum/object_window_info/obj_window
 
 	var/list/parallax_layers
 	var/list/parallax_layers_cached

@@ -5,7 +5,7 @@
  */
 /obj/item/compact_remote
 	name = "compact remote"
-	icon = 'icons/obj/wiremod.dmi'
+	icon = 'icons/obj/science/circuits.dmi'
 	icon_state = "setup_small_simple"
 	inhand_icon_state = "electronic"
 	worn_icon_state = "electronic"
@@ -34,7 +34,7 @@
 	signal = add_output_port("Signal", PORT_TYPE_SIGNAL)
 
 /obj/item/circuit_component/compact_remote/register_shell(atom/movable/shell)
-	RegisterSignal(shell, COMSIG_ITEM_ATTACK_SELF, .proc/send_trigger)
+	RegisterSignal(shell, COMSIG_ITEM_ATTACK_SELF, PROC_REF(send_trigger))
 
 /obj/item/circuit_component/compact_remote/unregister_shell(atom/movable/shell)
 	UnregisterSignal(shell, COMSIG_ITEM_ATTACK_SELF)

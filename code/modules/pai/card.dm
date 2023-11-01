@@ -47,29 +47,33 @@
 
 /obj/item/pai_card/emag_act(mob/user)
 	if(pai)
-		pai.handle_emag(user)
+		return pai.handle_emag(user)
+	return FALSE
 
 /obj/item/pai_card/emp_act(severity)
 	. = ..()
 	if (. & EMP_PROTECT_SELF)
 		return
-	if(!pai?.holoform)
+	if(pai && !pai.holoform)
 		pai.emp_act(severity)
 
-/obj/item/pai_card/handle_atom_del(atom/thing)
-	if(thing == pai) //double check /mob/living/silicon/pai/Destroy() if you change these.
-		pai = null
-		emotion_icon = initial(emotion_icon)
-		update_appearance()
-	return ..()
+/obj/item/pai_card/proc/on_pai_del(atom/source)
+	SIGNAL_HANDLER
+	if(QDELETED(src))
+		return
+	pai = null
+	emotion_icon = initial(emotion_icon)
+	update_appearance()
 
 /obj/item/pai_card/Initialize(mapload)
 	. = ..()
+
 	update_appearance()
 	SSpai.pai_card_list += src
+	ADD_TRAIT(src, TRAIT_CASTABLE_LOC, INNATE_TRAIT)
 
 /obj/item/pai_card/suicide_act(mob/living/user)
-	user.visible_message(span_suicide("[user] is staring sadly at [src]! [user.p_they()] can't keep living without real human intimacy!"))
+	user.visible_message(span_suicide("[user] is staring sadly at [src]! [user.p_They()] can't keep living without real human intimacy!"))
 	return OXYLOSS
 
 /obj/item/pai_card/update_overlays()
@@ -95,6 +99,11 @@
 		return UI_INTERACTIVE
 	return ..()
 
+/obj/item/pai_card/ui_static_data(mob/user)
+	. = ..()
+	.["range_max"] = HOLOFORM_MAX_RANGE
+	.["range_min"] = HOLOFORM_MIN_RANGE
+
 /obj/item/pai_card/ui_data(mob/user)
 	. = ..()
 	var/list/data = list()
@@ -110,6 +119,7 @@
 		name = pai.name,
 		transmit = pai.can_transmit,
 		receive = pai.can_receive,
+		range = pai.leash?.distance,
 	)
 	return data
 
@@ -146,6 +156,12 @@
 		if("toggle_radio")
 			pai.toggle_radio(params["option"])
 			return TRUE
+		if("increase_range")
+			pai.increment_range(1)
+			return TRUE
+		if("decrease_range")
+			pai.increment_range(-1)
+			return TRUE
 		if("wipe_pai")
 			pai.wipe_pai(usr)
 			ui.close()
@@ -158,7 +174,7 @@
 		return
 	add_overlay(
 		list(mutable_appearance(icon, "[initial(icon_state)]-alert"),
-			emissive_appearance(icon, "[initial(icon_state)]-alert", alpha = src.alpha)))
+			emissive_appearance(icon, "[initial(icon_state)]-alert", src, alpha = src.alpha)))
 
 /** Removes any overlays */
 /obj/item/pai_card/proc/remove_alert()
@@ -172,7 +188,7 @@
 		return
 	COOLDOWN_START(src, alert_cooldown, 5 SECONDS)
 	add_alert()
-	addtimer(CALLBACK(src, .proc/remove_alert), 5 SECONDS)
+	addtimer(CALLBACK(src, PROC_REF(remove_alert)), 5 SECONDS)
 	playsound(src, 'sound/machines/ping.ogg', 30, TRUE)
 	visible_message(span_notice("[src] flashes a message across its screen: New personalities available for download!"), blind_message = span_notice("[src] vibrates with an alert."))
 
@@ -254,6 +270,7 @@
 	if(pai)
 		return FALSE
 	pai = downloaded
+	RegisterSignal(pai, COMSIG_QDELETING, PROC_REF(on_pai_del))
 	emotion_icon = "null"
 	update_appearance()
 	playsound(src, 'sound/effects/pai_boot.ogg', 50, TRUE, -1)

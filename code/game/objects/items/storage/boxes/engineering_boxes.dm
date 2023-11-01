@@ -22,6 +22,13 @@
 	name = "box of materials"
 	illustration = "implant"
 
+/obj/item/storage/box/material/Initialize(mapload)
+	. = ..()
+	atom_storage.allow_big_nesting = TRUE
+	atom_storage.max_slots = 99
+	atom_storage.max_specific_storage = WEIGHT_CLASS_GIGANTIC
+	atom_storage.max_total_storage = 99
+
 /obj/item/storage/box/material/PopulateContents() //less uranium because radioactive
 	var/static/items_inside = list(
 		/obj/item/stack/sheet/iron/fifty=1,
@@ -50,6 +57,13 @@
 	name = "box of debug tools"
 	icon_state = "syndiebox"
 
+/obj/item/storage/box/debugtools/Initialize(mapload)
+	. = ..()
+	atom_storage.allow_big_nesting = TRUE
+	atom_storage.max_slots = 99
+	atom_storage.max_specific_storage = WEIGHT_CLASS_GIGANTIC
+	atom_storage.max_total_storage = 99
+
 /obj/item/storage/box/debugtools/PopulateContents()
 	var/static/items_inside = list(
 		/obj/item/card/emag=1,
@@ -58,8 +72,7 @@
 		/obj/item/flashlight/emp/debug=1,
 		/obj/item/geiger_counter=1,
 		/obj/item/healthanalyzer/advanced=1,
-		/obj/item/modular_computer/tablet/pda=1,
-		/obj/item/modular_computer/tablet/preset/advanced=1,
+		/obj/item/modular_computer/pda/heads/captain=1,
 		/obj/item/pipe_dispenser=1,
 		/obj/item/stack/spacecash/c1000=50,
 		/obj/item/storage/box/beakers/bluespace=1,
@@ -74,9 +87,9 @@
 	name = "plastic box"
 	desc = "It's a solid, plastic shell box."
 	icon_state = "plasticbox"
-	foldable = null
+	foldable_result = null
 	illustration = "writing"
-	custom_materials = list(/datum/material/plastic = 1000) //You lose most if recycled.
+	custom_materials = list(/datum/material/plastic = HALF_SHEET_MATERIAL_AMOUNT) //You lose most if recycled.
 
 /obj/item/storage/box/emergencytank
 	name = "emergency oxygen tank box"

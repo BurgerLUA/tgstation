@@ -20,8 +20,6 @@
 	var/alignment = ALIGNMENT_GOOD
 	/// Does this require something before being available as an option?
 	var/starter = TRUE
-	/// species traits that block you from picking
-	var/invalidating_qualities = NONE
 	/// The Sect's 'Mana'
 	var/favor = 0 //MANA!
 	/// The max amount of favor the sect can have
@@ -57,21 +55,28 @@
 /// Activates once selected and on newjoins, oriented around people who become holy.
 /datum/religion_sect/proc/on_conversion(mob/living/chap)
 	SHOULD_CALL_PARENT(TRUE)
-	to_chat(chap, "<span class='bold notice'>\"[quote]\"</span>")
-	to_chat(chap, "<span class='notice'>[desc]</span>")
+	to_chat(chap, span_boldnotice("\"[quote]\""))
+	to_chat(chap, span_notice("[desc]"))
+
+/// Activates if religious sect is reset by admins, should clean up anything you added on conversion.
+/datum/religion_sect/proc/on_deconversion(mob/living/chap)
+	SHOULD_CALL_PARENT(TRUE)
+	to_chat(chap, span_boldnotice("You have lost the approval of \the [name]."))
+	if(chap.mind.holy_role == HOLY_ROLE_HIGHPRIEST)
+		to_chat(chap, span_notice("Return to an altar to reform your sect."))
 
 /// Returns TRUE if the item can be sacrificed. Can be modified to fit item being tested as well as person offering. Returning TRUE will stop the attackby sequence and proceed to on_sacrifice.
-/datum/religion_sect/proc/can_sacrifice(obj/item/I, mob/living/chap)
+/datum/religion_sect/proc/can_sacrifice(obj/item/sacrifice, mob/living/chap)
 	. = TRUE
 	if(chap.mind.holy_role == HOLY_ROLE_DEACON)
 		to_chat(chap, "<span class='warning'>You are merely a deacon of [GLOB.deity], and therefore cannot perform rites.")
 		return
-	if(!is_type_in_typecache(I,desired_items_typecache))
+	if(!is_type_in_typecache(sacrifice, desired_items_typecache))
 		return FALSE
 
 /// Activates when the sect sacrifices an item. This proc has NO bearing on the attackby sequence of other objects when used in conjunction with the religious_tool component.
-/datum/religion_sect/proc/on_sacrifice(obj/item/I, mob/living/chap)
-	return adjust_favor(default_item_favor,chap)
+/datum/religion_sect/proc/on_sacrifice(obj/item/sacrifice, mob/living/chap)
+	return adjust_favor(default_item_favor, chap)
 
 /// Returns a description for religious tools
 /datum/religion_sect/proc/tool_examine(mob/living/holy_creature)
@@ -84,7 +89,7 @@
 		. = favor //if favor = 5 and we want to subtract 10, we'll only be able to subtract 5
 	if((favor + amount > max_favor))
 		. = (max_favor-favor) //if favor = 5 and we want to add 10 with a max of 10, we'll only be able to add 5
-	favor = clamp(0,max_favor, favor+amount)
+	favor = clamp(0, max_favor, favor+amount)
 
 /// Sets favor to a specific amount. Can provide optional features based on a user.
 /datum/religion_sect/proc/set_favor(amount = 0, mob/living/chap)
@@ -100,17 +105,17 @@
 		return FALSE
 	var/mob/living/carbon/human/blessed = target
 	for(var/obj/item/bodypart/bodypart as anything in blessed.bodyparts)
-		if(!IS_ORGANIC_LIMB(bodypart))
+		if(IS_ROBOTIC_LIMB(bodypart))
 			to_chat(chap, span_warning("[GLOB.deity] refuses to heal this metallic taint!"))
 			return TRUE
 
 	var/heal_amt = 10
-	var/list/hurt_limbs = blessed.get_damaged_bodyparts(1, 1, null, BODYTYPE_ORGANIC)
+	var/list/hurt_limbs = blessed.get_damaged_bodyparts(1, 1, BODYTYPE_ORGANIC)
 
 	if(hurt_limbs.len)
 		for(var/X in hurt_limbs)
 			var/obj/item/bodypart/affecting = X
-			if(affecting.heal_damage(heal_amt, heal_amt, null, BODYTYPE_ORGANIC))
+			if(affecting.heal_damage(heal_amt, heal_amt, required_bodytype = BODYTYPE_ORGANIC))
 				blessed.update_damage_overlays()
 		blessed.visible_message(span_notice("[chap] heals [blessed] with the power of [GLOB.deity]!"))
 		to_chat(blessed, span_boldnotice("May the power of [GLOB.deity] compel you to be healed!"))
@@ -158,14 +163,14 @@
 
 	//first we determine if we can charge them
 	var/did_we_charge = FALSE
-	var/obj/item/organ/internal/stomach/ethereal/eth_stomach = blessed.getorganslot(ORGAN_SLOT_STOMACH)
+	var/obj/item/organ/internal/stomach/ethereal/eth_stomach = blessed.get_organ_slot(ORGAN_SLOT_STOMACH)
 	if(istype(eth_stomach))
 		eth_stomach.adjust_charge(60)
 		did_we_charge = TRUE
 
 	//if we're not targetting a robot part we stop early
 	var/obj/item/bodypart/bodypart = blessed.get_bodypart(chap.zone_selected)
-	if(!IS_ORGANIC_LIMB(bodypart))
+	if(IS_ORGANIC_LIMB(bodypart))
 		if(!did_we_charge)
 			to_chat(chap, span_warning("[GLOB.deity] scoffs at the idea of healing such fleshy matter!"))
 		else
@@ -176,25 +181,26 @@
 		return TRUE
 
 	//charge(?) and go
-	if(bodypart.heal_damage(5,5,null,BODYTYPE_ROBOTIC))
+	if(bodypart.heal_damage(5,5,BODYTYPE_ROBOTIC))
 		blessed.update_damage_overlays()
 
-	blessed.visible_message(span_notice("[chap] [did_we_charge ? "repairs" : "repairs and charges"] [blessed] with the power of [GLOB.deity]!"))
-	to_chat(blessed, span_boldnotice("The inner machinations of [GLOB.deity] [did_we_charge ? "repairs" : "repairs and charges"] you!"))
+	blessed.visible_message(span_notice("[chap] [did_we_charge ? "repairs and charges" : "repairs"] [blessed] with the power of [GLOB.deity]!"))
+	to_chat(blessed, span_boldnotice("The inner machinations of [GLOB.deity] [did_we_charge ? "repairs and charges" : "repairs"] you!"))
 	playsound(chap, 'sound/effects/bang.ogg', 25, TRUE, -1)
 	blessed.add_mood_event("blessing", /datum/mood_event/blessing)
 	return TRUE
 
-/datum/religion_sect/mechanical/on_sacrifice(obj/item/I, mob/living/chap)
-	var/obj/item/stock_parts/cell/the_cell = I
-	if(!istype(the_cell)) //how...
+/datum/religion_sect/mechanical/on_sacrifice(obj/item/stock_parts/cell/power_cell, mob/living/chap)
+	if(!istype(power_cell))
 		return
-	if(the_cell.charge < 300)
-		to_chat(chap,span_notice("[GLOB.deity] does not accept pity amounts of power."))
+
+	if(power_cell.charge < 300)
+		to_chat(chap, span_notice("[GLOB.deity] does not accept pity amounts of power."))
 		return
-	adjust_favor(round(the_cell.charge/300), chap)
-	to_chat(chap, span_notice("You offer [the_cell]'s power to [GLOB.deity], pleasing them."))
-	qdel(I)
+
+	adjust_favor(round(power_cell.charge/300), chap)
+	to_chat(chap, span_notice("You offer [power_cell]'s power to [GLOB.deity], pleasing them."))
+	qdel(power_cell)
 	return TRUE
 
 /**** Pyre God ****/
@@ -206,22 +212,27 @@
 	tgui_icon = "fire-alt"
 	alignment = ALIGNMENT_NEUT
 	max_favor = 10000
-	desired_items = list(/obj/item/candle = "already lit")
+	desired_items = list(/obj/item/flashlight/flare/candle = "already lit")
 	rites_list = list(/datum/religion_rites/fireproof, /datum/religion_rites/burning_sacrifice, /datum/religion_rites/infinite_candle)
 	altar_icon_state = "convertaltar-red"
 
-//candle sect bibles don't heal or do anything special apart from the standard holy water blessings
-/datum/religion_sect/pyre/sect_bless(mob/living/target, mob/living/chap)
-	return TRUE
+/datum/religion_sect/pyre/on_select()
+	. = ..()
+	AddComponent(/datum/component/sect_nullrod_bonus, list(
+		/obj/item/gun/ballistic/bow/divine/with_quiver = list(
+			/datum/religion_rites/blazing_star,
+		),
+	))
 
-/datum/religion_sect/pyre/on_sacrifice(obj/item/candle/offering, mob/living/user)
+
+/datum/religion_sect/pyre/on_sacrifice(obj/item/flashlight/flare/candle/offering, mob/living/user)
 	if(!istype(offering))
 		return
-	if(!offering.lit)
+	if(!offering.light_on)
 		to_chat(user, span_notice("The candle needs to be lit to be offered!"))
 		return
 	to_chat(user, span_notice("[GLOB.deity] is pleased with your sacrifice."))
-	adjust_favor(20, user) //it's not a lot but hey there's a pacifist favor option at least
+	adjust_favor(50, user) //it's not a lot but hey there's a pacifist favor option at least
 	qdel(offering)
 	return TRUE
 
@@ -252,16 +263,16 @@
 		return FALSE
 	var/mob/living/carbon/human/blessed = blessed_living
 	for(var/obj/item/bodypart/robolimb as anything in blessed.bodyparts)
-		if(!IS_ORGANIC_LIMB(robolimb))
+		if(IS_ROBOTIC_LIMB(robolimb))
 			to_chat(chap, span_warning("[GLOB.deity] refuses to heal this metallic taint!"))
 			return TRUE
 
-	account.adjust_money(-GREEDY_HEAL_COST)
+	account.adjust_money(-GREEDY_HEAL_COST, "Church Donation: Treatment")
 	var/heal_amt = 30
-	var/list/hurt_limbs = blessed.get_damaged_bodyparts(1, 1, null, BODYTYPE_ORGANIC)
+	var/list/hurt_limbs = blessed.get_damaged_bodyparts(1, 1, BODYTYPE_ORGANIC)
 	if(hurt_limbs.len)
 		for(var/obj/item/bodypart/affecting as anything in hurt_limbs)
-			if(affecting.heal_damage(heal_amt, heal_amt, null, BODYTYPE_ORGANIC))
+			if(affecting.heal_damage(heal_amt, heal_amt, required_bodytype = BODYTYPE_ORGANIC))
 				blessed.update_damage_overlays()
 		blessed.visible_message(span_notice("[chap] barters a heal for [blessed] from [GLOB.deity]!"))
 		to_chat(blessed, span_boldnotice("May the power of [GLOB.deity] compel you to be healed! Thank you for choosing [GLOB.deity]!"))
@@ -271,6 +282,38 @@
 
 #undef GREEDY_HEAL_COST
 
+/datum/religion_sect/burden
+	name = "Punished God"
+	quote = "To feel the freedom, you must first understand captivity."
+	desc = "Incapacitate yourself in any way possible. Bad mutations, lost limbs, traumas, \
+	even addictions. You will learn the secrets of the universe from your defeated shell."
+	tgui_icon = "user-injured"
+	altar_icon_state = "convertaltar-burden"
+	alignment = ALIGNMENT_NEUT
+	candle_overlay = FALSE
+	rites_list = list(/datum/religion_rites/nullrod_transformation)
+
+/datum/religion_sect/burden/on_conversion(mob/living/carbon/human/new_convert)
+	..()
+	if(!ishuman(new_convert))
+		to_chat(new_convert, span_warning("[GLOB.deity] needs higher level creatures to fully comprehend the suffering. You are not burdened."))
+		return
+	new_convert.gain_trauma(/datum/brain_trauma/special/burdened, TRAUMA_RESILIENCE_MAGIC)
+
+/datum/religion_sect/burden/on_deconversion(mob/living/carbon/human/new_convert)
+	if (ishuman(new_convert))
+		new_convert.cure_trauma_type(/datum/brain_trauma/special/burdened, TRAUMA_RESILIENCE_MAGIC)
+	return ..()
+
+/datum/religion_sect/burden/tool_examine(mob/living/carbon/human/burdened) //display burden level
+	if(!ishuman(burdened))
+		return FALSE
+	var/datum/brain_trauma/special/burdened/burden = burdened.has_trauma_type(/datum/brain_trauma/special/burdened)
+	if(burden)
+		return "You are at burden level [burden.burden_level]/9."
+	return "You are not burdened."
+
+
 /datum/religion_sect/honorbound
 	name = "Honorbound God"
 	quote = "A good, honorable crusade against evil is required."
@@ -279,7 +322,6 @@
 	tgui_icon = "scroll"
 	altar_icon_state = "convertaltar-white"
 	alignment = ALIGNMENT_GOOD
-	invalidating_qualities = TRAIT_GENELESS
 	rites_list = list(/datum/religion_rites/deaconize, /datum/religion_rites/forgive, /datum/religion_rites/summon_rules)
 	///people who have agreed to join the crusade, and can be deaconized
 	var/list/possible_crusaders = list()
@@ -302,41 +344,12 @@
 	if(!ishuman(new_convert))
 		to_chat(new_convert, span_warning("[GLOB.deity] has no respect for lower creatures, and refuses to make you honorbound."))
 		return FALSE
-	if(TRAIT_GENELESS in new_convert.dna.species.inherent_traits)
-		to_chat(new_convert, span_warning("[GLOB.deity] has deemed your species as one that could never show honor."))
-		return FALSE
-	var/datum/dna/holy_dna = new_convert.dna
-	holy_dna.add_mutation(/datum/mutation/human/honorbound)
+	new_convert.gain_trauma(/datum/brain_trauma/special/honorbound, TRAUMA_RESILIENCE_MAGIC)
 
-/datum/religion_sect/burden
-	name = "Punished God"
-	quote = "To feel the freedom, you must first understand captivity."
-	desc = "Incapacitate yourself in any way possible. Bad mutations, lost limbs, traumas, \
-	even addictions. You will learn the secrets of the universe from your defeated shell."
-	tgui_icon = "user-injured"
-	altar_icon_state = "convertaltar-burden"
-	alignment = ALIGNMENT_NEUT
-	invalidating_qualities = TRAIT_GENELESS
-	candle_overlay = FALSE
-
-/datum/religion_sect/burden/on_conversion(mob/living/carbon/human/new_convert)
-	..()
-	if(!ishuman(new_convert))
-		to_chat(new_convert, span_warning("[GLOB.deity] needs higher level creatures to fully comprehend the suffering. You are not burdened."))
-		return
-	if(TRAIT_GENELESS in new_convert.dna.species.inherent_traits)
-		to_chat(new_convert, span_warning("[GLOB.deity] cannot help a species such as yourself comprehend the suffering. You are not burdened."))
-		return
-	var/datum/dna/holy_dna = new_convert.dna
-	holy_dna.add_mutation(/datum/mutation/human/burdened)
-
-/datum/religion_sect/burden/tool_examine(mob/living/carbon/human/burdened) //display burden level
-	if(!ishuman(burdened))
-		return FALSE
-	var/datum/mutation/human/burdened/burdenmut = burdened.dna.check_mutation(/datum/mutation/human/burdened)
-	if(burdenmut)
-		return "You are at burden level [burdenmut.burden_level]/6."
-	return "You are not burdened."
+/datum/religion_sect/honorbound/on_deconversion(mob/living/carbon/human/new_convert)
+	if (ishuman(new_convert))
+		new_convert.cure_trauma_type(/datum/brain_trauma/special/honorbound, TRAUMA_RESILIENCE_MAGIC)
+	return ..()
 
 #define MINIMUM_YUCK_REQUIRED 5
 

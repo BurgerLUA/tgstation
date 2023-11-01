@@ -21,6 +21,9 @@ GLOBAL_PROTECT(lua_usr)
 	/// A list in which to store datums and lists instantiated in lua, ensuring that they don't get garbage collected
 	var/list/references = list()
 
+	/// Ckey of the last user who ran a script on this lua state.
+	var/ckey_last_runner = ""
+
 /datum/lua_state/vv_edit_var(var_name, var_value)
 	. = ..()
 	if(var_name == NAMEOF(src, internal_id))
@@ -63,7 +66,7 @@ GLOBAL_PROTECT(lua_usr)
 			result["param"] = weakrefify_list(encode_text_and_nulls(result["param"]))
 		log += list(result)
 		index_of_log = log.len
-	INVOKE_ASYNC(src, /datum/lua_state.proc/update_editors)
+	INVOKE_ASYNC(src, TYPE_PROC_REF(/datum/lua_state, update_editors))
 	return index_of_log
 
 /datum/lua_state/proc/load_script(script)
@@ -95,7 +98,7 @@ GLOBAL_PROTECT(lua_usr)
 				var/datum/weakref/weak_ref = path_element
 				var/resolved = weak_ref.hard_resolve()
 				if(!resolved)
-					return list("status" = "errored", "param" = "Weakref in function path ([weak_ref] \ref[weak_ref]) resolved to null.", "name" = jointext(function, "."))
+					return list("status" = "errored", "param" = "Weakref in function path ([weak_ref] [text_ref(weak_ref)]) resolved to null.", "name" = jointext(function, "."))
 				new_function_path += resolved
 			else
 				new_function_path += path_element
@@ -163,9 +166,23 @@ GLOBAL_PROTECT(lua_usr)
 	__lua_kill_task(internal_id, task_info)
 
 /datum/lua_state/proc/update_editors()
-	var/list/editor_list = LAZYACCESS(SSlua.editors, "\ref[src]")
+	var/list/editor_list = LAZYACCESS(SSlua.editors, text_ref(src))
 	if(editor_list)
 		for(var/datum/lua_editor/editor as anything in editor_list)
 			SStgui.update_uis(editor)
+
+/// Called by lua scripts when they add an atom to var/list/references so that it gets cleared up on delete.
+/datum/lua_state/proc/clear_on_delete(datum/to_clear)
+	RegisterSignal(to_clear, COMSIG_QDELETING, PROC_REF(on_delete))
+
+/// Called by lua scripts when an atom they've added should soft delete and this state should stop tracking it.
+/// Needs to unregister all signals.
+/datum/lua_state/proc/let_soft_delete(datum/to_clear)
+	UnregisterSignal(to_clear, COMSIG_QDELETING, PROC_REF(on_delete))
+	references -= to_clear
+
+/datum/lua_state/proc/on_delete(datum/to_clear)
+	SIGNAL_HANDLER
+	references -= to_clear
 
 #undef MAX_LOG_REPEAT_LOOKBACK

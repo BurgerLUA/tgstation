@@ -10,11 +10,10 @@
 
 /obj/effect/spawner/random/maintenance/Initialize(mapload)
 	loot = GLOB.maintenance_loot
-
-	. = ..()
+	return ..()
 
 /obj/effect/spawner/random/maintenance/proc/hide()
-	invisibility = INVISIBILITY_OBSERVER
+	SetInvisibility(INVISIBILITY_OBSERVER)
 	alpha = 100
 
 /obj/effect/spawner/random/maintenance/proc/get_effective_lootcount()

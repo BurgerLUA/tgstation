@@ -26,6 +26,10 @@
 
 	var/starting_time = world.time
 
+#if DM_VERSION >= 515
+	log_reftracker("Refcount for [type]: [refcount(src)]")
+#endif
+
 	//Time to search the whole game for our ref
 	DoSearchVar(GLOB, "GLOB", search_time = starting_time) //globals
 	log_reftracker("Finished searching globals")
@@ -88,6 +92,7 @@
 			return
 
 		datum_container.last_find_references = search_time
+		var/container_print = datum_container.ref_search_details()
 		var/list/vars_list = datum_container.vars
 
 		for(var/varname in vars_list)
@@ -104,11 +109,11 @@
 					found_refs[varname] = TRUE
 					continue //End early, don't want these logging
 				#endif
-				log_reftracker("Found [type] \ref[src] in [datum_container.type]'s \ref[datum_container] [varname] var. [container_name]")
+				log_reftracker("Found [type] [text_ref(src)] in [datum_container.type]'s [container_print] [varname] var. [container_name]")
 				continue
 
 			if(islist(variable))
-				DoSearchVar(variable, "[container_name] \ref[datum_container] -> [varname] (list)", recursive_limit - 1, search_time)
+				DoSearchVar(variable, "[container_name] [container_print] -> [varname] (list)", recursive_limit - 1, search_time)
 
 	else if(islist(potential_container))
 		var/normal = IS_NORMAL_LIST(potential_container)
@@ -124,7 +129,7 @@
 					found_refs[potential_cache] = TRUE
 					continue //End early, don't want these logging
 				#endif
-				log_reftracker("Found [type] \ref[src] in list [container_name].")
+				log_reftracker("Found [type] [text_ref(src)] in list [container_name].")
 				continue
 
 			var/assoc_val = null
@@ -137,7 +142,7 @@
 					found_refs[potential_cache] = TRUE
 					continue //End early, don't want these logging
 				#endif
-				log_reftracker("Found [type] \ref[src] in list [container_name]\[[element_in_list]\]")
+				log_reftracker("Found [type] [text_ref(src)] in list [container_name]\[[element_in_list]\]")
 				continue
 			//We need to run both of these checks, since our object could be hiding in either of them
 			//Check normal sublists
@@ -151,7 +156,17 @@
 	thing_to_del.qdel_and_find_ref_if_fail(force)
 
 /datum/proc/qdel_and_find_ref_if_fail(force = FALSE)
-	SSgarbage.reference_find_on_fail["\ref[src]"] = TRUE
+	SSgarbage.reference_find_on_fail[text_ref(src)] = TRUE
 	qdel(src, force)
 
 #endif
+
+// Kept outside the ifdef so overrides are easy to implement
+
+/// Return info about us for reference searching purposes
+/// Will be logged as a representation of this datum if it's a part of a search chain
+/datum/proc/ref_search_details()
+	return text_ref(src)
+
+/datum/callback/ref_search_details()
+	return "[text_ref(src)] (obj: [object] proc: [delegate] args: [json_encode(arguments)] user: [user?.resolve() || "null"])"

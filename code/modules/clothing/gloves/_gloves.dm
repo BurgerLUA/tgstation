@@ -3,8 +3,12 @@
 	gender = PLURAL //Carn: for grammarically correct text-parsing
 	w_class = WEIGHT_CLASS_SMALL
 	icon = 'icons/obj/clothing/gloves.dmi'
+	inhand_icon_state = "greyscale_gloves"
 	lefthand_file = 'icons/mob/inhands/clothing/gloves_lefthand.dmi'
 	righthand_file = 'icons/mob/inhands/clothing/gloves_righthand.dmi'
+	greyscale_colors = null
+	greyscale_config_inhand_left = /datum/greyscale_config/gloves_inhand_left
+	greyscale_config_inhand_right = /datum/greyscale_config/gloves_inhand_right
 	siemens_coefficient = 0.5
 	body_parts_covered = HANDS
 	slot_flags = ITEM_SLOT_GLOVES
@@ -16,6 +20,14 @@
 	var/cut_type = null
 	/// Used for handling bloody gloves leaving behind bloodstains on objects. Will be decremented whenever a bloodstain is left behind, and be incremented when the gloves become bloody.
 	var/transfer_blood = 0
+
+/obj/item/clothing/gloves/apply_fantasy_bonuses(bonus)
+	. = ..()
+	siemens_coefficient = modify_fantasy_variable("siemens_coefficient", siemens_coefficient, -bonus / 10)
+
+/obj/item/clothing/gloves/remove_fantasy_bonuses(bonus)
+	siemens_coefficient = reset_fantasy_variable("siemens_coefficient", siemens_coefficient)
+	return ..()
 
 /obj/item/clothing/gloves/wash(clean_types)
 	. = ..()
@@ -51,14 +63,18 @@
 	return TRUE
 
 /obj/item/clothing/gloves/attackby(obj/item/tool, mob/user, params)
+	. = ..()
+	if(.)
+		return
 	if(tool.tool_behaviour != TOOL_WIRECUTTER && !tool.get_sharpness())
 		return
 	if (!can_cut_with(tool))
 		return
 	balloon_alert(user, "cutting off fingertips...")
 
-	if(!do_after(user, 3 SECONDS, target=src, extra_checks = CALLBACK(src, .proc/can_cut_with, tool)))
+	if(!do_after(user, 3 SECONDS, target=src, extra_checks = CALLBACK(src, PROC_REF(can_cut_with), tool)))
 		return
 	balloon_alert(user, "cut fingertips off")
 	qdel(src)
 	user.put_in_hands(new cut_type)
+	return TRUE

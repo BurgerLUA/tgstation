@@ -1,9 +1,12 @@
+GLOBAL_VAR_INIT(nt_fax_department, pick("NT HR Department", "NT Legal Department", "NT Complaint Department", "NT Customer Relations", "Nanotrasen Tech Support", "NT Internal Affairs Dept"))
+
 /obj/machinery/fax
 	name = "Fax Machine"
 	desc = "Bluespace technologies on the application of bureaucracy."
-	icon = 'icons/obj/fax.dmi'
+	icon = 'icons/obj/machines/fax.dmi'
 	icon_state = "fax"
 	density = TRUE
+	anchored_tabletop_offset = 6
 	power_channel = AREA_USAGE_EQUIP
 	max_integrity = 100
 	pass_flags = PASSTABLE
@@ -38,21 +41,30 @@
 	var/static/list/exotic_types = list(
 		/obj/item/food/pizzaslice,
 		/obj/item/food/root_flatbread,
+		/obj/item/food/pizza/flatbread,
+		/obj/item/food/breadslice,
 		/obj/item/food/salami,
 		/obj/item/throwing_star,
 		/obj/item/stack/spacecash,
 		/obj/item/holochip,
-		/obj/item/card
+		/obj/item/card,
+		/obj/item/folder/biscuit,
+	)
+	/// List with a fake-networks(not a fax actually), for request manager.
+	var/list/special_networks = list(
+		nanotrasen = list(fax_name = "NT HR Department", fax_id = "central_command", color = "teal", emag_needed = FALSE),
+		syndicate = list(fax_name = "Sabotage Department", fax_id = "syndicate", color = "red", emag_needed = TRUE),
 	)
 
 /obj/machinery/fax/Initialize(mapload)
 	. = ..()
 	if (!fax_id)
-		fax_id = SSnetworks.assign_random_name()
+		fax_id = assign_random_name()
 	if (!fax_name)
 		fax_name = "Unregistered fax " + fax_id
-	wires = new /datum/wires/fax(src)
+	set_wires(new /datum/wires/fax(src))
 	register_context()
+	special_networks["nanotrasen"]["fax_name"] = GLOB.nt_fax_department
 
 /obj/machinery/fax/Destroy()
 	QDEL_NULL(loaded_item_ref)
@@ -79,9 +91,9 @@
 		return
 	STOP_PROCESSING(SSmachines, src)
 
-/obj/machinery/fax/process(delta_time)
+/obj/machinery/fax/process(seconds_per_tick)
 	if(seconds_electrified > MACHINE_NOT_ELECTRIFIED)
-		seconds_electrified -= delta_time
+		seconds_electrified -= seconds_per_tick
 
 /obj/machinery/fax/attack_hand(mob/user, list/modifiers)
 	if(seconds_electrified && !(machine_stat & NOPOWER))
@@ -93,14 +105,17 @@
  * Emag the device if the panel is open.
  * Emag does not bring you into the syndicate network, but makes it visible to you.
  */
-/obj/machinery/fax/emag_act(mob/user)
+/obj/machinery/fax/emag_act(mob/user, obj/item/card/emag/emag_card)
 	if (!panel_open && !allow_exotic_faxes)
 		balloon_alert(user, "open panel first!")
-		return
+		return FALSE
 	if (!(obj_flags & EMAGGED))
 		obj_flags |= EMAGGED
 		playsound(src, 'sound/creatures/dog/growl2.ogg', 50, FALSE)
+		balloon_alert(user, "migrated to syndienet 2.0")
 		to_chat(user, span_warning("An image appears on [src] screen for a moment with Ian in the cap of a Syndicate officer."))
+		return TRUE
+	return FALSE
 
 /obj/machinery/fax/wrench_act(mob/living/user, obj/item/tool)
 	. = ..()
@@ -128,7 +143,7 @@
 	if (new_fax_name != fax_name)
 		if (fax_name_exist(new_fax_name))
 			// Being able to set the same name as another fax machine will give a lot of gimmicks for the traitor.
-			if (syndicate_network != TRUE && obj_flags != EMAGGED)
+			if (syndicate_network != TRUE && !(obj_flags & EMAGGED))
 				to_chat(user, span_warning("There is already a fax machine with this name on the network."))
 				return TOOL_ACT_TOOLTYPE_SUCCESS
 		user.log_message("renamed [fax_name] (fax machine) to [new_fax_name].", LOG_GAME)
@@ -207,7 +222,7 @@
 /obj/machinery/fax/ui_data(mob/user)
 	var/list/data = list()
 	//Record a list of all existing faxes.
-	for(var/obj/machinery/fax/FAX in GLOB.machines)
+	for(var/obj/machinery/fax/FAX as anything in SSmachines.get_machines_by_type_and_subtypes(/obj/machinery/fax))
 		if(FAX.fax_id == fax_id) //skip yourself
 			continue
 		var/list/fax_data = list()
@@ -227,6 +242,10 @@
 	data["syndicate_network"] = (syndicate_network || (obj_flags & EMAGGED))
 	data["has_paper"] = !!loaded_item_ref?.resolve()
 	data["fax_history"] = fax_history
+	var/list/special_networks_data = list()
+	for(var/key in special_networks)
+		special_networks_data += list(special_networks[key])
+	data["special_faxes"] = special_networks_data
 	return data
 
 /obj/machinery/fax/ui_act(action, list/params)
@@ -245,6 +264,7 @@
 			playsound(src, 'sound/machines/eject.ogg', 50, FALSE)
 			update_appearance()
 			return TRUE
+
 		if("send")
 			var/obj/item/loaded = loaded_item_ref?.resolve()
 			if (!loaded)
@@ -255,6 +275,30 @@
 				loaded_item_ref = null
 				update_appearance()
 				return TRUE
+
+		if("send_special")
+			var/obj/item/paper/fax_paper = loaded_item_ref?.resolve()
+			if(!istype(fax_paper))
+				to_chat(usr, icon2html(src.icon, usr) + span_warning("Fax cannot send all above paper on this protected network, sorry."))
+				return
+
+			fax_paper.request_state = TRUE
+			fax_paper.loc = null
+
+			INVOKE_ASYNC(src, PROC_REF(animate_object_travel), fax_paper, "fax_receive", find_overlay_state(fax_paper, "send"))
+			playsound(src, 'sound/machines/high_tech_confirm.ogg', 50, vary = FALSE)
+
+			history_add("Send", params["name"])
+
+			GLOB.requests.fax_request(usr.client, "sent a fax message from [fax_name]/[fax_id] to [params["name"]]", fax_paper)
+			to_chat(GLOB.admins, span_adminnotice("[icon2html(src.icon, GLOB.admins)]<b><font color=green>FAX REQUEST: </font>[ADMIN_FULLMONTY(usr)]:</b> [span_linkify("sent a fax message from [fax_name]/[fax_id][ADMIN_FLW(src)] to [html_encode(params["name"])]")] [ADMIN_SHOW_PAPER(fax_paper)]"), confidential = TRUE)
+			for(var/client/staff as anything in GLOB.admins)
+				if(staff?.prefs.read_preference(/datum/preference/toggle/comms_notification))
+					SEND_SOUND(staff, sound('sound/misc/server-ready.ogg'))
+			log_fax(fax_paper, params["id"], params["name"])
+			loaded_item_ref = null
+			update_appearance()
+
 		if("history_clear")
 			history_clear()
 			return TRUE
@@ -284,7 +328,7 @@
  * * id - The network ID of the fax machine you want to send the item to.
  */
 /obj/machinery/fax/proc/send(obj/item/loaded, id)
-	for(var/obj/machinery/fax/FAX in GLOB.machines)
+	for(var/obj/machinery/fax/FAX as anything in SSmachines.get_machines_by_type_and_subtypes(/obj/machinery/fax))
 		if (FAX.fax_id != id)
 			continue
 		if (FAX.jammed)
@@ -294,7 +338,7 @@
 			return FALSE
 		FAX.receive(loaded, fax_name)
 		history_add("Send", FAX.fax_name)
-		INVOKE_ASYNC(src, .proc/animate_object_travel, loaded, "fax_receive", find_overlay_state(loaded, "send"))
+		INVOKE_ASYNC(src, PROC_REF(animate_object_travel), loaded, "fax_receive", find_overlay_state(loaded, "send"))
 		playsound(src, 'sound/machines/high_tech_confirm.ogg', 50, FALSE)
 		return TRUE
 	return FALSE
@@ -309,10 +353,10 @@
  */
 /obj/machinery/fax/proc/receive(obj/item/loaded, sender_name)
 	playsound(src, 'sound/machines/printer.ogg', 50, FALSE)
-	INVOKE_ASYNC(src, .proc/animate_object_travel, loaded, "fax_receive", find_overlay_state(loaded, "receive"))
+	INVOKE_ASYNC(src, PROC_REF(animate_object_travel), loaded, "fax_receive", find_overlay_state(loaded, "receive"))
 	say("Received correspondence from [sender_name].")
 	history_add("Receive", sender_name)
-	addtimer(CALLBACK(src, .proc/vend_item, loaded), 1.9 SECONDS)
+	addtimer(CALLBACK(src, PROC_REF(vend_item), loaded), 1.9 SECONDS)
 
 /**
  * Procedure for animating an object entering or leaving the fax machine.
@@ -325,7 +369,7 @@
 	icon_state = animation_state
 	var/mutable_appearance/overlay = mutable_appearance(icon, overlay_state)
 	overlays += overlay
-	addtimer(CALLBACK(src, .proc/travel_animation_complete, overlay), 2 SECONDS)
+	addtimer(CALLBACK(src, PROC_REF(travel_animation_complete), overlay), 2 SECONDS)
 
 /**
  * Called when the travel animation should end. Reset animation and overlay states.
@@ -357,6 +401,8 @@
 		return "[state_prefix]_star"
 	if (istype(item, /obj/item/tcgcard))
 		return "[state_prefix]_tcg"
+	if (istype(item, /obj/item/folder/biscuit))
+		return "[state_prefix]_pbiscuit"
 	return "[state_prefix]_paper"
 
 /**
@@ -402,7 +448,7 @@
  * * new_fax_name - The text of the name to be checked for a match.
  */
 /obj/machinery/fax/proc/fax_name_exist(new_fax_name)
-	for(var/obj/machinery/fax/FAX in GLOB.machines)
+	for(var/obj/machinery/fax/FAX as anything in SSmachines.get_machines_by_type_and_subtypes(/obj/machinery/fax))
 		if (FAX.fax_name == new_fax_name)
 			return TRUE
 	return FALSE
@@ -473,3 +519,29 @@
 		return CONTEXTUAL_SCREENTIP_SET
 
 	return .
+
+/// Sends a fax to a fax machine in an area! fax_area is a type, where all subtypes are also queried. If multiple machines, one is randomly picked
+/// If force is TRUE, we send a droppod with a fax machine and fax the message to that fax machine
+/proc/send_fax_to_area(obj/item/fax_item, area_type, sender, force = FALSE, force_pod_type)
+	var/list/fax_machines = SSmachines.get_machines_by_type_and_subtypes(/obj/machinery/fax)
+	var/list/valid_fax_machines = list()
+
+	for(var/obj/machinery/fax as anything in fax_machines) //get valid fax machines
+		var/area/fax_area = get_area(fax)
+		if(istype(fax_area, area_type))
+			valid_fax_machines += fax
+
+	// Pick a fax machine and send the fax
+	if(valid_fax_machines.len)
+		var/obj/machinery/fax/target_fax = pick(valid_fax_machines)
+		target_fax.receive(fax_item, sender)
+
+	else if(force) //no fax machines but we really gotte send? SEND A FAX MACHINE
+		var/obj/machinery/fax/new_fax_machine = new ()
+		send_supply_pod_to_area(new_fax_machine, area_type, force_pod_type)
+		addtimer(CALLBACK(new_fax_machine, TYPE_PROC_REF(/obj/machinery/fax, receive), fax_item, sender), 10 SECONDS)
+
+	else
+		return FALSE
+	return TRUE
+

@@ -1,9 +1,6 @@
 /obj/docking_port/mobile/assault_pod
 	name = "assault pod"
 	shuttle_id = "steel_rain"
-	dwidth = 3
-	width = 7
-	height = 7
 
 /obj/docking_port/mobile/assault_pod/request(obj/docking_port/stationary/S)
 	if(!(z in SSmapping.levels_by_trait(ZTRAIT_STATION))) //No launching pods that have already launched
@@ -57,7 +54,7 @@
 	landing_zone.height = height
 	landing_zone.setDir(lz_dir)
 
-	for(var/obj/machinery/computer/shuttle/S in GLOB.machines)
+	for(var/obj/machinery/computer/shuttle/S in SSmachines.get_machines_by_type_and_subtypes(/obj/machinery/computer/shuttle))
 		if(S.shuttleId == shuttle_id)
 			S.possible_destinations = "[landing_zone.shuttle_id]"
 
