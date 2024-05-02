@@ -10,23 +10,22 @@
 	anchored = FALSE
 	health = 25
 	maxHealth = 25
+	light_color = "#99ccff"
 
-	maints_access_required = list(ACCESS_ROBOTICS, ACCESS_JANITOR)
+	req_one_access = list(ACCESS_ROBOTICS, ACCESS_JANITOR)
 	radio_key = /obj/item/encryptionkey/headset_service
 	radio_channel = RADIO_CHANNEL_SERVICE
 	bot_type = CLEAN_BOT
 	hackables = "cleaning software"
 	additional_access = /datum/id_trim/job/janitor
-	greyscale_config = /datum/greyscale_config/buckets_cleanbot
 	possessed_message = "You are a cleanbot! Clean the station to the best of your ability!"
 	ai_controller = /datum/ai_controller/basic_controller/bot/cleanbot
+	path_image_color = "#993299"
 	///the bucket used to build us.
 	var/obj/item/reagent_containers/cup/bucket/build_bucket
 	///Flags indicating what kind of cleanables we should scan for to set as our target to clean.
 	///Options: CLEANBOT_CLEAN_BLOOD | CLEANBOT_CLEAN_TRASH | CLEANBOT_CLEAN_PESTS | CLEANBOT_CLEAN_DRAWINGS
 	var/janitor_mode_flags = CLEANBOT_CLEAN_BLOOD
-	///should other bots salute us?
-	var/comissioned = FALSE
 	///the base icon state, used in updating icons.
 	var/base_icon = "cleanbot"
 	/// if we have all the top titles, grant achievements to living mobs that gaze upon our cleanbot god
@@ -94,7 +93,6 @@
 		/obj/effect/decal/cleanable/glass,
 		/obj/effect/decal/cleanable/vomit,
 		/obj/effect/decal/cleanable/wrapping,
-		/obj/effect/decal/remains,
 	))
 	///blood we can clean
 	var/static/list/cleanable_blood = typecacheof(list(
@@ -111,6 +109,7 @@
 	var/static/list/huntable_trash = typecacheof(list(
 		/obj/item/trash,
 		/obj/item/food/deadmouse,
+		/obj/effect/decal/remains,
 	))
 	///drawings we hunt
 	var/static/list/cleanable_drawings = typecacheof(list(/obj/effect/decal/cleanable/crayon))
@@ -140,14 +139,14 @@
 	generate_ai_keys()
 	AddComponent(/datum/component/obeys_commands, pet_commands)
 	AddComponent(/datum/component/cleaner, \
-		base_cleaning_duration = 1 SECONDS, \
+		base_cleaning_duration = 2 SECONDS, \
 		pre_clean_callback = CALLBACK(src, PROC_REF(update_bot_mode), BOT_CLEANING), \
 		on_cleaned_callback = CALLBACK(src, PROC_REF(update_bot_mode), BOT_IDLE), \
 	)
 
 	GLOB.janitor_devices += src
 
-	var/obj/item/reagent_containers/cup/bucket/consistent/bucket_obj = new
+	var/obj/item/reagent_containers/cup/bucket/bucket_obj = new
 	bucket_obj.forceMove(src)
 
 	var/obj/item/mop/new_mop = new
@@ -166,7 +165,6 @@
 	. = ..()
 	if(istype(arrived, /obj/item/reagent_containers/cup/bucket) && isnull(build_bucket))
 		build_bucket = arrived
-		set_greyscale(build_bucket.greyscale_colors)
 		return
 
 	if(istype(arrived, /obj/item/mop) && isnull(our_mop))
@@ -233,7 +231,7 @@
 // Variables sent to TGUI
 /mob/living/basic/bot/cleanbot/ui_data(mob/user)
 	var/list/data = ..()
-	if(!(bot_access_flags & BOT_CONTROL_PANEL_OPEN) && !issilicon(user) && !isAdminGhostAI(user))
+	if((bot_access_flags & BOT_COVER_LOCKED) && !HAS_SILICON_ACCESS(user))
 		return data
 	data["custom_controls"]["clean_blood"] = janitor_mode_flags & CLEANBOT_CLEAN_BLOOD
 	data["custom_controls"]["clean_trash"] = janitor_mode_flags & CLEANBOT_CLEAN_TRASH
@@ -244,7 +242,7 @@
 // Actions received from TGUI
 /mob/living/basic/bot/cleanbot/ui_act(action, list/params, datum/tgui/ui, datum/ui_state/state)
 	. = ..()
-	if(. || !(bot_access_flags & BOT_CONTROL_PANEL_OPEN) && !ui.user.has_unlimited_silicon_privilege)
+	if(. || (bot_access_flags & BOT_COVER_LOCKED) && !HAS_SILICON_ACCESS(ui.user))
 		return
 
 	switch(action)
@@ -299,8 +297,8 @@
 		return
 
 	stolen_valor += new_job_title
-	if(!comissioned && (new_job_title in officers_titles))
-		comissioned = TRUE
+	if(!HAS_TRAIT(src, TRAIT_COMMISSIONED) && (new_job_title in officers_titles))
+		ADD_TRAIT(src, TRAIT_COMMISSIONED, INNATE_TRAIT)
 
 	var/name_to_add = job_titles[new_job_title]
 	name = (new_job_title in suffix_job_titles) ? "[name] " + name_to_add : name_to_add + " [name]"
@@ -322,15 +320,18 @@
 	INVOKE_ASYNC(weapon, TYPE_PROC_REF(/obj/item, attack), stabbed_carbon, src)
 	stabbed_carbon.Knockdown(2 SECONDS)
 
-/mob/living/basic/bot/cleanbot/proc/pre_attack(mob/living/source, atom/target)
+/mob/living/basic/bot/cleanbot/proc/pre_attack(mob/living/source, atom/target, proximity, modifiers)
 	SIGNAL_HANDLER
+
+	if(!proximity || !can_unarmed_attack())
+		return NONE
 
 	if(is_type_in_typecache(target, huntable_pests) && !isnull(our_mop))
 		INVOKE_ASYNC(our_mop, TYPE_PROC_REF(/obj/item, melee_attack_chain), src, target)
 		return COMPONENT_CANCEL_ATTACK_CHAIN
 
-	if(!iscarbon(target) && !is_type_in_typecache(target, huntable_trash))
-		return
+	if(!(iscarbon(target) && (bot_access_flags & BOT_COVER_EMAGGED)) && !is_type_in_typecache(target, huntable_trash))
+		return NONE
 
 	visible_message(span_danger("[src] sprays hydrofluoric acid at [target]!"))
 	playsound(src, 'sound/effects/spray2.ogg', 50, TRUE, -6)
@@ -350,5 +351,5 @@
 
 /mob/living/basic/bot/cleanbot/medbay
 	name = "Scrubs, MD"
-	maints_access_required = list(ACCESS_ROBOTICS, ACCESS_JANITOR, ACCESS_MEDICAL)
+	req_one_access = list(ACCESS_ROBOTICS, ACCESS_JANITOR, ACCESS_MEDICAL)
 	bot_mode_flags = ~(BOT_MODE_ON | BOT_MODE_REMOTE_ENABLED)

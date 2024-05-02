@@ -23,7 +23,7 @@
 	. = ..()
 	if(drink_type)
 		var/list/types = bitfield_to_list(drink_type, FOOD_FLAGS)
-		. += span_notice("It is [lowertext(english_list(types))].")
+		. += span_notice("It is [LOWER_TEXT(english_list(types))].")
 
 /**
  * Checks if the mob actually liked drinking this cup.
@@ -125,6 +125,8 @@
 
 		var/trans = reagents.trans_to(target, amount_per_transfer_from_this, transferred_by = user)
 		to_chat(user, span_notice("You transfer [trans] unit\s of the solution to [target]."))
+		SEND_SIGNAL(src, COMSIG_REAGENTS_CUP_TRANSFER_TO, target)
+		target.update_appearance()
 
 	else if(target.is_drainable()) //A dispenser. Transfer FROM it TO us.
 		if(!target.reagents.total_volume)
@@ -137,8 +139,8 @@
 
 		var/trans = target.reagents.trans_to(src, amount_per_transfer_from_this, transferred_by = user)
 		to_chat(user, span_notice("You fill [src] with [trans] unit\s of the contents of [target]."))
-
-	target.update_appearance()
+		SEND_SIGNAL(src, COMSIG_REAGENTS_CUP_TRANSFER_FROM, target)
+		target.update_appearance()
 
 /obj/item/reagent_containers/cup/afterattack_secondary(atom/target, mob/user, proximity_flag, click_parameters)
 	if((!proximity_flag) || !check_allowed_items(target, target_self = TRUE))
@@ -350,11 +352,8 @@
 	inhand_icon_state = "bucket"
 	lefthand_file = 'icons/mob/inhands/equipment/custodial_lefthand.dmi'
 	righthand_file = 'icons/mob/inhands/equipment/custodial_righthand.dmi'
-	greyscale_colors = "#0085e5" //matches 1:1 with the original sprite color before gag-ification.
-	greyscale_config = /datum/greyscale_config/buckets
-	greyscale_config_worn = /datum/greyscale_config/buckets_worn
-	greyscale_config_inhand_left = /datum/greyscale_config/buckets_inhands_left
-	greyscale_config_inhand_right = /datum/greyscale_config/buckets_inhands_right
+	fill_icon_state = "bucket"
+	fill_icon_thresholds = list(50, 90)
 	custom_materials = list(/datum/material/iron=SMALL_MATERIAL_AMOUNT * 2)
 	w_class = WEIGHT_CLASS_NORMAL
 	amount_per_transfer_from_this = 20
@@ -375,31 +374,15 @@
 		ITEM_SLOT_DEX_STORAGE
 	)
 
-	/// Should this bucket randomize its colors?
-	var/randomize_colors = TRUE
-
 /datum/armor/cup_bucket
 	melee = 10
 	fire = 75
 	acid = 50
 
-/obj/item/reagent_containers/cup/bucket/Initialize(mapload, vol)
-	if (randomize_colors && greyscale_colors == initial(greyscale_colors))
-		set_greyscale(pick(list("#0085e5", COLOR_OFF_WHITE, COLOR_ORANGE_BROWN, COLOR_SERVICE_LIME, COLOR_MOSTLY_PURE_ORANGE, COLOR_FADED_PINK, COLOR_RED, COLOR_YELLOW, COLOR_VIOLET, COLOR_WEBSAFE_DARK_GRAY)))
-	return ..()
-
-/obj/item/reagent_containers/cup/bucket/consistent
-	randomize_colors = FALSE
-
 /obj/item/reagent_containers/cup/bucket/wooden
 	name = "wooden bucket"
 	icon_state = "woodbucket"
 	inhand_icon_state = "woodbucket"
-	greyscale_colors = null
-	greyscale_config = null
-	greyscale_config_worn = null
-	greyscale_config_inhand_left = null
-	greyscale_config_inhand_right = null
 	custom_materials = list(/datum/material/wood = SHEET_MATERIAL_AMOUNT * 2)
 	resistance_flags = FLAMMABLE
 	armor_type = /datum/armor/bucket_wooden
@@ -470,11 +453,13 @@
 	spillable = TRUE
 	var/obj/item/grinded
 
-/obj/item/reagent_containers/cup/mortar/AltClick(mob/user)
-	if(grinded)
-		grinded.forceMove(drop_location())
-		grinded = null
-		to_chat(user, span_notice("You eject the item inside."))
+/obj/item/reagent_containers/cup/mortar/click_alt(mob/user)
+	if(!grinded)
+		return CLICK_ACTION_BLOCKING
+	grinded.forceMove(drop_location())
+	grinded = null
+	balloon_alert(user, "ejected")
+	return CLICK_ACTION_SUCCESS
 
 /obj/item/reagent_containers/cup/mortar/attackby(obj/item/I, mob/living/carbon/human/user)
 	..()
@@ -490,7 +475,7 @@
 			var/picked_option = show_radial_menu(user, src, choose_options, radius = 38, require_near = TRUE)
 			if(grinded && in_range(src, user) && user.is_holding(I) && picked_option)
 				to_chat(user, span_notice("You start grinding..."))
-				if(do_after(user, 25, target = src))
+				if(do_after(user, 2.5 SECONDS, target = src))
 					user.adjustStaminaLoss(40)
 					switch(picked_option)
 						if("Juice")
