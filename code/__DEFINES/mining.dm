@@ -49,6 +49,8 @@
 #define ORE_WALL_LOW 2
 /// The amount of ore that is mined from a wall that is VENT_PROX_FAR tiles to a vent.
 #define ORE_WALL_FAR 1
+/// The amount of ore that is mined from a wall that doesn't even have a vent on the z-level.
+#define ORE_WALL_NONE 1
 
 /// The number of points a miner gets for discovering a vent, multiplied by BOULDER_SIZE when completing a wave defense minus the discovery bonus.
 #define MINER_POINT_MULTIPLIER 100
